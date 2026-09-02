@@ -1,0 +1,2782 @@
+<!DOCTYPE html>
+<!-- ToolSight QUICK MODE VOICE PROBE v1_04 - built on Quick Mode Mockup v7 -->
+<!-- THROWAWAY PROBE. Not the merge build, not Stage 7. Answers one -->
+<!--   question: does speaking a record actually land, field by field. -->
+<!-- Chrome on Android only. Must be served over HTTPS - the microphone -->
+<!--   is blocked on a file:// page exactly like the camera is. -->
+<!-- Read-back is reference and tool type only. Everything else is taken -->
+<!--   silently and flagged if unsure. The field never blocks. -->
+<!-- v7 body is untouched; voice is an appended module at the bottom. -->
+<!-- ToolSight Quick Mode Mockup - v7 - 2026-08-21 -->
+<!-- v7: left-hand ergonomics. The whole NPN and CAPACITY row is now the -->
+<!--     tap target - label text included - so neither checkbox has to be -->
+<!--     reached for across the phone; the box itself no longer takes taps, -->
+<!--     every tap goes through the same guarded path the pickers use. The -->
+<!--     drag guard is rewritten at the root: it no longer trusts touchmove -->
+<!--     alone. Chrome stops dispatching touchmove to an element once the -->
+<!--     compositor takes over the scroll, which is why a slow drag could -->
+<!--     still pop a sheet open. Touch-up now compares its own coordinates -->
+<!--     against touch-down, watches whether the page scrolled at all, and -->
+<!--     honours touchcancel. Slop raised from 8px to 14px for a thumb -->
+<!--     arcing across the screen. -->
+<!-- v6: identification moves to the desk. The reference is no longer -->
+<!--     required and is now hideable like any other field. NPN and CAPACITY -->
+<!--     become plain checkboxes in schema position - after tool code, before -->
+<!--     site loc - each hideable on its own; the NPN button that wrote the -->
+<!--     word NPN into the reference is gone. Next Tool now gates on ONE -->
+<!--     PHOTO AND TOOL TYPE, nothing else. Every record is issued an -->
+<!--     internal record ID at capture and photo filenames derive from it, -->
+<!--     so photos are uniquely named from the first shutter press whether or -->
+<!--     not a reference is ever typed. Nine gear toggles. -->
+<!-- v5: tapping a short single-line field selects its whole value so it can be -->
+<!--     typed straight over (comments excluded); Enter chains through length, -->
+<!--     width, height, estimated weight and then STOPS on the unit row before -->
+<!--     comments, so the unit is never skipped past unseen; pinch zoom and -->
+<!--     double-tap zoom in the photo viewer; Rotate added to the viewer More -->
+<!--     sheet, 90 degrees a tap, stored on the photo so it persists and shows -->
+<!--     on the thumbnails. Viewer swipe now only fires at 1x. -->
+<!-- v4: body scroll lock while any sheet/modal/viewer is open (shared counter, -->
+<!--     nested overlays safe); die op placeholder removed; drag guard on every -->
+<!--     picker so a scrolling thumb no longer pops a sheet open (capture screen -->
+<!--     AND record modal); site loc / detail location values can be renamed, -->
+<!--     cascading to every record on the site and to the live screen; a rename -->
+<!--     onto an existing value is blocked, never merged; rack detail split into -->
+<!--     two toggles - row+stack and rack+shelf. -->
+<!-- NON-FUNCTIONAL PROTOTYPE. No IndexedDB, no export, no schema writes. -->
+<!-- Session data is held in memory only and is lost on refresh. -->
+<!-- v3: DIE/OP + TOOL CODE fields added under quantity, each independently -->
+<!--     hideable, both default visible; UNIT corrected to LBS/KG/TONS weight -->
+<!--     unit (three tap buttons) with site-learned default; measurements -->
+<!--     reordered L/W/H one line, est weight, unit, calculated weight; -->
+<!--     real INV formula ESTIMATED_WEIGHT x QUANTITY converted to lbs; -->
+<!--     record modal autosaves (Save button removed) and obeys the same field -->
+<!--     toggles; record delete removed entirely; photo viewer rebuilt to match -->
+<!--     INV (back + filename, dots, Comments | More, More = Edit name/Delete); -->
+<!--     Download and Share deliberately omitted in Quick Mode; photo filenames -->
+<!--     derive from the reference; comments placeholder removed. -->
+<!--     Camera remains file-picker (separate build). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#1b2430">
+<title>ToolSight</title>
+<style>
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  margin: 0; padding: 0; height: 100%;
+  background: #eceff3;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  color: #1b2430;
+  -webkit-text-size-adjust: 100%;
+}
+body { overscroll-behavior: none; }
+
+.hdr {
+  position: sticky; top: 0; z-index: 40;
+  background: #1b2430; color: #fff;
+  padding: 12px 14px; padding-top: calc(12px + env(safe-area-inset-top));
+  display: flex; align-items: center; gap: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.25);
+}
+.hdr .ttl { font-size: 18px; font-weight: 600; letter-spacing: .2px; }
+.hdr .sub { font-size: 12px; color: #9fb0c4; margin-top: 2px; }
+.hdr .back { padding: 6px; margin: -6px; display: flex; }
+.hdr .spacer { flex: 1; }
+.hdr .cnt {
+  background: #2c3d52; border-radius: 14px; padding: 5px 11px;
+  font-size: 13px; font-weight: 600;
+}
+.hdr .gear { padding: 8px; margin: -8px -4px -8px 0; display: flex; color: #cbd6e2; }
+
+.screen { display: none; padding-bottom: 150px; }
+.screen.on { display: block; }
+
+/* ---------- site cards ---------- */
+.wrap { padding: 14px; }
+.card {
+  background: #fff; border-radius: 10px; margin-bottom: 12px;
+  box-shadow: 0 1px 3px rgba(27,36,48,.14);
+  overflow: hidden;
+}
+.card .top { padding: 16px; display: flex; align-items: center; gap: 12px; }
+.card .nm { font-size: 17px; font-weight: 600; }
+.card .meta { font-size: 13px; color: #61738a; margin-top: 5px; }
+.badge {
+  display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .6px;
+  padding: 4px 9px; border-radius: 4px; text-transform: uppercase;
+}
+.badge.quick { background: #dff0e0; color: #26663a; }
+.badge.grid { background: #e3e8ef; color: #4a5b71; }
+.card .chev { margin-left: auto; color: #9aa8b9; display: flex; }
+.card .detail {
+  display: none; border-top: 1px solid #e6eaf0; background: #f7f9fb;
+  padding: 14px 16px;
+}
+.card .detail.on { display: block; }
+.rowline { display: flex; align-items: center; padding: 10px 0; }
+.rowline .lbl { font-size: 14px; }
+.rowline .hint { font-size: 12px; color: #7b8b9e; margin-top: 3px; }
+
+.sw { margin-left: auto; width: 52px; height: 30px; border-radius: 15px; background: #c6cfda; position: relative; transition: background .15s; flex: none; }
+.sw.on { background: #2f7d4f; }
+.sw i { position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 12px; background: #fff; transition: left .15s; box-shadow: 0 1px 2px rgba(0,0,0,.3); }
+.sw.on i { left: 25px; }
+
+/* ---------- capture form ---------- */
+.blk { background: #fff; border-radius: 10px; margin: 0 14px 12px; padding: 14px; box-shadow: 0 1px 3px rgba(27,36,48,.14); }
+.blk h3 { margin: 0 0 12px; font-size: 15px; font-weight: 700; color: #2c3a4a; letter-spacing: .8px; text-transform: uppercase; }
+
+.bigbtn {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; min-height: 72px; border: none; border-radius: 10px;
+  background: #2d5f8f; color: #fff; font-size: 18px; font-weight: 600;
+  font-family: inherit; cursor: pointer;
+}
+.bigbtn:active { background: #244d75; }
+
+.strip { display: flex; gap: 8px; overflow-x: auto; padding: 12px 0 2px; }
+.strip .ph { width: 74px; height: 74px; border-radius: 8px; background: #dde3ea; flex: none; position: relative; overflow: hidden; }
+.strip .ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.strip .ph .rm { position: absolute; top: 3px; right: 3px; width: 22px; height: 22px; border-radius: 11px; background: rgba(0,0,0,.62); color: #fff; display: flex; align-items: center; justify-content: center; }
+.strip .none { font-size: 13px; color: #8b9aad; padding: 6px 2px; }
+
+label.f { display: block; font-size: 14px; font-weight: 600; color: #4a5a6e; margin: 0 0 6px; }
+.inp {
+  width: 100%; min-height: 54px; border: 1px solid #ccd4de; border-radius: 8px;
+  padding: 12px 14px; font-size: 17px; font-family: inherit; background: #fff; color: #1b2430;
+}
+textarea.inp { min-height: 88px; resize: none; line-height: 1.45; }
+.inp:focus { outline: none; border-color: #2d5f8f; box-shadow: 0 0 0 3px rgba(45,95,143,.14); }
+.pick {
+  width: 100%; min-height: 54px; border: 1px solid #ccd4de; border-radius: 8px;
+  padding: 12px 14px; font-size: 17px; background: #fff; text-align: left;
+  display: flex; align-items: center; font-family: inherit; color: #1b2430;
+}
+.pick .ar { margin-left: auto; color: #9aa8b9; display: flex; }
+.pick.empty { color: #9aa8b9; }
+.fld { margin-bottom: 14px; }
+.fld:last-child { margin-bottom: 0; }
+
+/* ---------- NPN / capacity checkboxes ----------
+   Colour-coded to match the INV app: capacity amber, NPN dark. Sized for
+   a gloved thumb, not a mouse pointer.
+
+   v7: the row is the target, not the box. A 28px box parked on the right
+   edge is a long reach for a left thumb, so the label text and the empty
+   space between it and the box now all toggle. The box takes no pointer
+   events at all - it is a state display - which keeps every tap on one
+   guarded path instead of two that could both fire. */
+.ckrow {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 7px 0; -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none; user-select: none;
+}
+.ckrow:active { background: #f4f6f9; }
+.ckrow .f { margin-bottom: 0; }
+.ck { width: 28px; height: 28px; flex: none; margin: 0; pointer-events: none; }
+.ck-npn { accent-color: #333; }
+.ck-cap { accent-color: #cc9900; }
+
+.qty { display: flex; align-items: center; gap: 0; }
+.qty button {
+  width: 60px; height: 54px; border: 1px solid #ccd4de; background: #f4f6f9;
+  font-size: 26px; font-family: inherit; color: #2d5f8f; display: flex; align-items: center; justify-content: center;
+}
+.qty button:first-child { border-radius: 8px 0 0 8px; }
+.qty button:last-child { border-radius: 0 8px 8px 0; }
+.qty .val {
+  flex: 1; height: 54px; border-top: 1px solid #ccd4de; border-bottom: 1px solid #ccd4de;
+  display: flex; align-items: center; justify-content: center; font-size: 19px; font-weight: 600; background: #fff;
+}
+
+.grp2 { display: flex; gap: 10px; }
+.grp2 > div { flex: 1; min-width: 0; }
+.grp3 { display: flex; gap: 8px; }
+.grp3 > div { flex: 1; min-width: 0; }
+.grp3 .inp { padding: 12px 6px; text-align: center; font-size: 16px; }
+.narrow { max-width: 150px; }
+.hidden { display: none !important; }
+
+/* ---------- unit buttons (weight unit - LBS / KG / TONS) ---------- */
+.unitrow { display: flex; gap: 8px; }
+/* Enter from estimated weight lands here, so the landing has to be visible. */
+.ub:focus { outline: none; box-shadow: 0 0 0 3px rgba(45,95,143,.45); }
+.ub {
+  flex: 1; min-height: 62px; border: 2px solid #ccd4de; border-radius: 8px;
+  background: #fff; color: #61738a; font-family: inherit;
+  font-size: 12px; font-weight: 700; letter-spacing: .3px; padding: 4px 2px;
+}
+.ub.on { background: #2d5f8f; border-color: #2d5f8f; color: #fff; }
+.unitrow.learned .ub.on { background: #8a6412; border-color: #8a6412; }
+.unitrow.learned .ub { border-color: #d9bd7e; }
+.hintline { font-size: 12px; color: #8a6412; margin-top: 7px; line-height: 1.45; }
+
+/* ---------- footer ---------- */
+.foot {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+  background: #fff; border-top: 1px solid #dde3ea;
+  padding: 8px 14px; padding-bottom: calc(10px + env(safe-area-inset-bottom));
+  display: block;
+}
+.foot .miss {
+  font-size: 15px; font-weight: 700; color: #d92020; letter-spacing: .4px;
+  text-transform: uppercase; text-align: center; padding: 2px 0 8px; min-height: 22px;
+}
+.nextbtn {
+  width: 100%; min-height: 66px; border: none; border-radius: 10px;
+  background: #2f7d4f; color: #fff; font-size: 19px; font-weight: 700; font-family: inherit;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.nextbtn:active { background: #266641; }
+.nextbtn:disabled { background: #cdd5de; color: #8b98a8; }
+
+/* ---------- sheet ---------- */
+.scrim, .vscrim { touch-action: none; }
+.scrim { position: fixed; inset: 0; background: rgba(15,22,31,.55); z-index: 50; display: none; }
+.scrim.on { display: block; }
+.sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 51;
+  background: #fff; border-radius: 14px 14px 0 0; max-height: 82%;
+  display: none; flex-direction: column;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.sheet.on { display: flex; }
+.sheet .sh {
+  padding: 16px; border-bottom: 1px solid #e6eaf0; font-size: 16px; font-weight: 600;
+  display: flex; align-items: center;
+}
+.sheet .sh .x { margin-left: auto; color: #7b8b9e; padding: 4px; margin-right: -4px; display: flex; }
+.sheet .body { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.modal .mb, .viewer { overscroll-behavior: contain; }
+.opt {
+  padding: 18px 16px; font-size: 17px; border-bottom: 1px solid #eef1f5;
+  display: flex; align-items: center;
+}
+.opt.sel { background: #eef5fb; font-weight: 600; color: #23547f; }
+.opt .lbl { flex: 1; min-width: 0; }
+.opt .ck { color: #2d5f8f; display: none; }
+.opt.sel .ck { display: flex; }
+.opt .edit { color: #9aa8b9; display: flex; padding: 6px; margin: -6px -6px -6px 12px; }
+.addrow { padding: 14px 16px; display: flex; gap: 8px; border-top: 1px solid #e6eaf0; background: #f7f9fb; }
+.addrow .inp { min-height: 50px; font-size: 16px; }
+.addrow button { flex: none; width: 84px; border: none; border-radius: 8px; background: #2d5f8f; color: #fff; font-weight: 600; font-family: inherit; font-size: 15px; }
+
+.note { padding: 12px 16px; font-size: 12px; color: #7b8b9e; line-height: 1.5; background: #f7f9fb; }
+
+/* ---------- tool list ---------- */
+.rec {
+  background: #fff; border-radius: 10px; margin: 0 14px 8px; padding: 10px 12px;
+  box-shadow: 0 1px 3px rgba(27,36,48,.12);
+  display: flex; align-items: center; gap: 12px; min-height: 68px;
+}
+.rec .txt { flex: 1; min-width: 0; }
+.rec .ref { font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rec .tt { font-size: 13px; color: #61738a; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rec .thumbwrap { position: relative; width: 52px; height: 52px; flex: none; }
+.rec .thumbwrap img { width: 52px; height: 52px; border-radius: 6px; object-fit: cover; display: block; }
+.rec .thumbwrap .nophoto {
+  width: 52px; height: 52px; border-radius: 6px; background: #eef1f5; color: #b3bfcd;
+  display: flex; align-items: center; justify-content: center;
+}
+.rec .thumbwrap .badge2 {
+  position: absolute; top: -5px; right: -5px; min-width: 20px; height: 20px; padding: 0 5px;
+  border-radius: 10px; background: #2d5f8f; color: #fff; font-size: 11px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; border: 2px solid #fff;
+}
+.rec .npnf { display: inline-block; font-size: 10px; font-weight: 700; background: #ececec; color: #333; padding: 2px 6px; border-radius: 3px; letter-spacing: .5px; vertical-align: 2px; margin-left: 6px; }
+.rec .capf { display: inline-block; font-size: 10px; font-weight: 700; background: #fdf4e0; color: #8a6412; padding: 2px 6px; border-radius: 3px; letter-spacing: .5px; vertical-align: 2px; margin-left: 6px; }
+.rec .rid { color: #9aa8b9; font-weight: 500; }
+.rec .cmt { display: inline-flex; color: #9aa8b9; margin-left: 6px; vertical-align: -3px; }
+.empt { text-align: center; padding: 50px 30px; color: #8b9aad; font-size: 15px; line-height: 1.6; }
+
+/* ---------- record modal ---------- */
+.modal {
+  position: fixed; inset: 0; z-index: 55; background: #eceff3;
+  display: none; flex-direction: column;
+}
+.modal.on { display: flex; }
+.modal .mh {
+  background: #1b2430; color: #fff; display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px; padding-top: calc(12px + env(safe-area-inset-top)); flex: none;
+}
+.modal .mh .x { padding: 6px; margin: -6px; display: flex; }
+.modal .mh .t { font-size: 16px; font-weight: 600; }
+.modal .mh .save {
+  margin-left: auto; background: #2f7d4f; color: #fff; border: none; border-radius: 7px;
+  padding: 10px 18px; font-size: 15px; font-weight: 700; font-family: inherit;
+}
+.modal .mb { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 14px 0 30px; }
+.pgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.pgrid .pi { position: relative; padding-top: 100%; border-radius: 8px; overflow: hidden; background: #dde3ea; }
+.pgrid .pi img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.addph {
+  width: 100%; min-height: 54px; border: 1px dashed #9fb0c4; border-radius: 8px; background: #f7f9fb;
+  color: #2d5f8f; font-size: 15px; font-weight: 600; font-family: inherit; margin-top: 10px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+
+/* ---------- photo viewer ---------- */
+.viewer { position: fixed; inset: 0; z-index: 70; background: #000; display: none; flex-direction: column; }
+.viewer.on { display: flex; }
+.viewer .vh {
+  color: #fff; display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+  padding-top: calc(12px + env(safe-area-inset-top)); flex: none;
+}
+.viewer .vh .x { padding: 8px; margin: -8px; display: flex; }
+.viewer .vh .nm { font-size: 15px; color: #e8edf3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.viewer .vbody {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  overflow: hidden; touch-action: none;
+}
+.viewer .vbody img {
+  max-width: 100%; max-height: 100%; display: block;
+  transform-origin: center center; will-change: transform;
+}
+.viewer .dots { display: flex; gap: 7px; justify-content: center; padding: 18px 0 calc(24px + env(safe-area-inset-bottom)); flex: none; }
+.viewer .dots i { width: 7px; height: 7px; border-radius: 4px; background: #4a5b71; display: block; }
+.viewer .dots i.on { background: #fff; }
+.viewer .vbar { display: flex; flex: none; padding: 0 0 calc(12px + env(safe-area-inset-bottom)); }
+.viewer .vbar button {
+  flex: 1; background: transparent; border: none; color: #fff; font-family: inherit;
+  font-size: 12px; display: flex; flex-direction: column; align-items: center; gap: 7px;
+  padding: 12px 0; position: relative;
+}
+.viewer .vbar .cdot {
+  position: absolute; top: 8px; left: 50%; margin-left: 8px;
+  width: 8px; height: 8px; border-radius: 4px; background: #4a9c6a; display: block;
+}
+
+/* ---------- viewer More sheet (dark, matches INV) ---------- */
+.vscrim { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 71; display: none; }
+.vscrim.on { display: block; }
+.vsheet {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 72; background: #2a2a2c;
+  display: none; padding-bottom: env(safe-area-inset-bottom);
+}
+.vsheet.on { display: block; }
+.vopt {
+  padding: 20px 22px; color: #fff; font-size: 17px;
+  display: flex; align-items: center; gap: 18px; border-bottom: 1px solid #3a3a3d;
+}
+.vopt.danger { color: #f2635c; }
+.vcancel { padding: 20px; text-align: center; color: #9aa0a6; font-size: 17px; background: #232325; }
+
+/* ---------- small edit overlay (name / photo comment) ---------- */
+.vovl {
+  position: fixed; inset: 0; z-index: 75; background: rgba(0,0,0,.62);
+  display: none; align-items: center; justify-content: center; padding: 20px;
+}
+.vovl.on { display: flex; }
+.vbox { background: #fff; border-radius: 12px; width: 100%; max-width: 420px; padding: 18px; }
+.vbox .vt { font-size: 16px; font-weight: 700; margin-bottom: 12px; }
+.vbtns { display: flex; gap: 10px; margin-top: 14px; }
+.vbtns button { flex: 1; min-height: 48px; border-radius: 8px; font-family: inherit; font-size: 15px; font-weight: 600; border: none; }
+.vbtns .c { background: #eef1f5; color: #61738a; }
+.vbtns .s { background: #2d5f8f; color: #fff; }
+
+.toast {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: 118px; z-index: 80;
+  background: #1b2430; color: #fff; padding: 11px 18px; border-radius: 22px; font-size: 14px;
+  opacity: 0; transition: opacity .2s; pointer-events: none;
+}
+.toast.on { opacity: 1; }
+.tabs { display: flex; margin: 14px 14px 12px; background: #dfe4eb; border-radius: 8px; padding: 3px; }
+.tabs button { flex: 1; border: none; background: transparent; font-family: inherit; font-size: 14px; font-weight: 600; color: #61738a; padding: 10px; border-radius: 6px; }
+.tabs button.on { background: #fff; color: #1b2430; box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+
+/* ===== VOICE PROBE ===== */
+.vpbar{background:#161616;border:1px solid #333;border-radius:10px;padding:10px;margin:0 0 12px}
+.vpbar.on{border-color:#2f7d4f;background:#121a14}
+.vprow{display:flex;gap:8px}
+.vpstart{flex:1;background:#2f7d4f;color:#fff;border:0;border-radius:8px;padding:12px;font-size:15px;font-weight:600}
+.vpbar.on .vpstart{background:#8a1e1e}
+.vprep{background:#2a2a2a;color:#ddd;border:1px solid #444;border-radius:8px;padding:12px 14px;font-size:14px}
+.vpmsg{color:#bbb;font-size:12px;margin-top:8px;min-height:16px}
+.vpflags{display:flex;flex-wrap:wrap;gap:3px;margin-top:8px}
+.vpf{font-size:9px;padding:2px 5px;border-radius:3px;background:#2a2a2a;color:#777}
+.vpf.green{background:#1e7a3c;color:#fff}
+.vpf.yellow{background:#8a6d00;color:#fff}
+.vpf.red{background:#8a1e1e;color:#fff}
+.vplog{margin-top:8px;max-height:96px;overflow:auto;font-size:10px;color:#8a8a8a;line-height:1.5}
+.vphint{margin-top:8px;font-size:10px;color:#666}
+</style>
+</head>
+<body>
+
+<!-- ================= HEADER ================= -->
+<div class="hdr">
+  <div class="back hidden" id="backBtn" onclick="goSites()">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l14 0"></path><path d="M5 12l6 6"></path><path d="M5 12l6 -6"></path></svg>
+  </div>
+  <div>
+    <div class="ttl" id="hdrTitle">ToolSight</div>
+    <div class="sub" id="hdrSub">Sites</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="cnt hidden" id="hdrCount">0</div>
+  <div class="gear hidden" id="hdrGear" onclick="openSettings()">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l8 0"></path><path d="M16 6l4 0"></path><path d="M4 12l2 0"></path><path d="M10 12l10 0"></path><path d="M4 18l10 0"></path><path d="M18 18l2 0"></path><path d="M12 4l0 4"></path><path d="M6 10l0 4"></path><path d="M14 16l0 4"></path></svg>
+  </div>
+</div>
+
+<!-- ================= SITES ================= -->
+<div class="screen on" id="scrSites">
+  <div class="wrap">
+
+    <div class="card">
+      <div class="top" onclick="openSite('corvac')">
+        <div>
+          <div class="nm">CORVAC</div>
+          <div class="meta"><span class="badge quick" id="badgeCorvac">Quick Mode</span> &nbsp; <span id="cntCorvac">0 tools captured</span></div>
+        </div>
+        <div class="chev">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6l-6 6"></path></svg>
+        </div>
+      </div>
+      <div class="rowline" style="padding:0 16px 12px;">
+        <div style="font-size:13px;color:#2d5f8f;font-weight:600;" onclick="toggleDetail('corvac')">Site detail</div>
+      </div>
+      <div class="detail" id="detCorvac">
+        <div class="rowline">
+          <div>
+            <div class="lbl">Quick Mode</div>
+            <div class="hint">Photo-first capture. No record lookup on site.</div>
+          </div>
+          <div class="sw on" id="swCorvac" onclick="toggleMode('corvac')"><i></i></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="top" onclick="openSite('deltar')">
+        <div>
+          <div class="nm">ITW DELTAR</div>
+          <div class="meta"><span class="badge grid" id="badgeDeltar">Grid Mode</span> &nbsp; <span id="cntDeltar">1,051 records &middot; 38% complete</span></div>
+        </div>
+        <div class="chev">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6l-6 6"></path></svg>
+        </div>
+      </div>
+      <div class="rowline" style="padding:0 16px 12px;">
+        <div style="font-size:13px;color:#2d5f8f;font-weight:600;" onclick="toggleDetail('deltar')">Site detail</div>
+      </div>
+      <div class="detail" id="detDeltar">
+        <div class="rowline">
+          <div>
+            <div class="lbl">Quick Mode</div>
+            <div class="hint">Photo-first capture. No record lookup on site.</div>
+          </div>
+          <div class="sw" id="swDeltar" onclick="toggleMode('deltar')"><i></i></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="note" style="border-radius:8px;">
+      Mockup only. Nothing is saved. Tapping a Quick Mode card opens the capture screen;
+      tapping a Grid Mode card does nothing here.
+    </div>
+
+  </div>
+</div>
+
+<!-- ================= CAPTURE ================= -->
+<div class="screen" id="scrCapture">
+
+  <div class="tabs">
+    <button class="on" id="tabCap" onclick="showTab('cap')">Capture</button>
+    <button id="tabList" onclick="showTab('list')">Tool List</button>
+  </div>
+
+  <div id="paneCap">
+
+    <!-- ===== VOICE PROBE BAR (appended module) ===== -->
+    <div class="vpbar" id="vpBar">
+      <div class="vprow">
+        <button class="vpstart" id="vpBtn" onclick="vpToggle()">Start voice</button>
+        <button class="vprep" onclick="vpReport()">Report</button>
+      </div>
+      <div class="vpmsg" id="vpMsg">Voice off &mdash; Chrome on Android, served over HTTPS</div>
+      <div class="vpflags" id="vpFlags"></div>
+      <div class="vplog" id="vpLog"></div>
+      <div class="vphint">Say <b>no</b> to redo, <b>back</b>, <b>skip</b>, <b>stop</b>. At the end say <b>next tool</b>.</div>
+    </div>
+
+
+    <div class="blk">
+      <button class="bigbtn" onclick="fileInput.click()">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h1a2 2 0 0 0 2 -2a1 1 0 0 1 1 -1h6a1 1 0 0 1 1 1a2 2 0 0 0 2 2h1a2 2 0 0 1 2 2v9a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-9a2 2 0 0 1 2 -2"></path><path d="M9 13a3 3 0 1 0 6 0a3 3 0 0 0 -6 0"></path></svg>
+        <span>Media</span>
+      </button>
+      <input type="file" id="fileInput" accept="image/*" multiple style="display:none">
+      <div class="strip" id="strip"><div class="none">No photos yet &mdash; shoot everything for this tool, then come back.</div></div>
+    </div>
+
+    <div class="blk">
+      <h3>Tool Info</h3>
+      <div class="fld" id="grpRef">
+        <label class="f">Tool ID</label>
+        <input class="inp" id="refInp" type="text" autocomplete="off" autocapitalize="characters"
+               enterkeyhint="next" placeholder="Optional &mdash; type what you see">
+      </div>
+
+      <div class="fld">
+        <label class="f">Tool type</label>
+        <button class="pick empty" id="ttPick"
+                ontouchstart="tapStart(event)" ontouchmove="tapMove(event)" ontouchcancel="tapCancel(event)" ontouchend="tapEnd(event, openTT)" onclick="tapClick(event, openTT)">
+          <span id="ttLbl">Select tool type</span>
+          <span class="ar"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6l6 -6"></path></svg></span>
+        </button>
+      </div>
+
+      <div class="fld">
+        <label class="f">Quantity</label>
+        <div class="qty">
+          <button onclick="bumpQty(-1)">&minus;</button>
+          <div class="val" id="qtyVal">1</div>
+          <button onclick="bumpQty(1)">+</button>
+        </div>
+      </div>
+
+      <div class="grp2 fld" id="grpDieTool">
+      <div id="grpDieOp">
+        <label class="f">Die/op</label>
+        <input class="inp" id="doInp" type="text" autocomplete="off" autocapitalize="characters">
+        <div class="hintline hidden" id="doHint"></div>
+      </div>
+
+      <div id="grpToolCode">
+        <label class="f">Tool code</label>
+        <button class="pick empty" id="tcPick"
+                ontouchstart="tapStart(event)" ontouchmove="tapMove(event)" ontouchcancel="tapCancel(event)" ontouchend="tapEnd(event, openTC)" onclick="tapClick(event, openTC)">
+          <span id="tcLbl">&mdash;</span>
+          <span class="ar"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6l6 -6"></path></svg></span>
+        </button>
+      </div>
+      </div>
+
+      <div class="grp2 fld" id="grpNpnCap">
+      <div class="ckrow" id="grpNpn"
+           ontouchstart="tapStart(event)" ontouchmove="tapMove(event)"
+           ontouchcancel="tapCancel(event)" ontouchend="tapEnd(event, toggleNpn)"
+           onclick="tapClick(event, toggleNpn)">
+        <span class="f">NPN</span>
+        <input type="checkbox" class="ck ck-npn" id="npnCk" tabindex="-1">
+      </div>
+
+      <div class="ckrow" id="grpCap"
+           ontouchstart="tapStart(event)" ontouchmove="tapMove(event)"
+           ontouchcancel="tapCancel(event)" ontouchend="tapEnd(event, toggleCap)"
+           onclick="tapClick(event, toggleCap)">
+        <span class="f">Capacity</span>
+        <input type="checkbox" class="ck ck-cap" id="capCk" tabindex="-1">
+      </div>
+      </div>
+    </div>
+
+    <div class="blk">
+      <h3>Location</h3>
+
+      <div class="fld">
+        <label class="f">Site loc</label>
+        <button class="pick" id="slPick" ontouchstart="tapStart(event)" ontouchmove="tapMove(event)" ontouchcancel="tapCancel(event)" ontouchend="tapEnd(event, openComboSite)" onclick="tapClick(event, openComboSite)">
+          <span id="slLbl">&mdash;</span>
+          <span class="ar"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6l6 -6"></path></svg></span>
+        </button>
+      </div>
+
+      <div class="fld">
+        <label class="f">Section / detail location</label>
+        <button class="pick" id="dlPick" ontouchstart="tapStart(event)" ontouchmove="tapMove(event)" ontouchcancel="tapCancel(event)" ontouchend="tapEnd(event, openComboDetail)" onclick="tapClick(event, openComboDetail)">
+          <span id="dlLbl">&mdash;</span>
+          <span class="ar"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6l6 -6"></path></svg></span>
+        </button>
+      </div>
+
+      <div class="grp2 fld" id="grpRowStack">
+        <div>
+          <label class="f">Row NBR</label>
+          <input class="inp" id="rowInp" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+        </div>
+        <div>
+          <label class="f">Stack NBR</label>
+          <input class="inp" id="stackInp" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+        </div>
+      </div>
+      <div class="grp2 fld" id="grpRackShelf">
+        <div>
+          <label class="f">Rack NBR</label>
+          <input class="inp" id="rackInp" type="text" autocomplete="off" autocapitalize="characters">
+        </div>
+        <div>
+          <label class="f">Shelf NBR</label>
+          <input class="inp" id="shelfInp" type="text" autocomplete="off" autocapitalize="characters">
+        </div>
+      </div>
+
+      <div id="grpSkid" class="fld">
+        <label class="f">Skid NBR</label>
+        <input class="inp narrow" id="skidInp" type="text" autocomplete="off" autocapitalize="characters">
+      </div>
+    </div>
+
+    <div class="blk" id="grpMeas">
+      <h3>Measurements</h3>
+      <div class="grp3 fld">
+        <div>
+          <label class="f">Length</label>
+          <input class="inp" id="lenInp" type="text" inputmode="decimal" autocomplete="off">
+        </div>
+        <div>
+          <label class="f">Width</label>
+          <input class="inp" id="widInp" type="text" inputmode="decimal" autocomplete="off">
+        </div>
+        <div>
+          <label class="f">Height</label>
+          <input class="inp" id="hgtInp" type="text" inputmode="decimal" autocomplete="off">
+        </div>
+      </div>
+      <div class="fld">
+        <label class="f">Estimated weight</label>
+        <input class="inp" id="ewInp" type="text" inputmode="numeric" autocomplete="off">
+      </div>
+      <div class="fld">
+        <label class="f">Unit</label>
+        <div class="unitrow" id="unitRow">
+          <button class="ub on" id="ubLBS" onclick="pickUnit('LBS')">LBS</button>
+          <button class="ub" id="ubKG" onclick="pickUnit('KG')">KG</button>
+          <button class="ub" id="ubTONS" onclick="pickUnit('TONS')">TONS</button>
+        </div>
+        <div class="hintline hidden" id="unHint"></div>
+      </div>
+      <div class="fld">
+        <label class="f">Calculated weight</label>
+        <div class="inp" id="cwOut" style="display:flex;align-items:center;background:#f4f6f9;color:#61738a;">&mdash;</div>
+      </div>
+    </div>
+
+    <div class="blk">
+      <h3>Inventory comments</h3>
+      <textarea class="inp" id="cmtInp"></textarea>
+    </div>
+
+  </div>
+
+  <div id="paneList" class="hidden">
+    <div id="listWrap"><div class="empt">No tools captured yet.</div></div>
+  </div>
+
+</div>
+
+<!-- ================= FOOTER ================= -->
+<div class="foot hidden" id="foot">
+  <div class="miss" id="missMsg"></div>
+  <button class="nextbtn" id="nextBtn" disabled onclick="nextTool()">
+    <span>Next Tool</span>
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l14 0"></path><path d="M13 18l6 -6"></path><path d="M13 6l6 6"></path></svg>
+  </button>
+</div>
+
+<!-- ================= RECORD MODAL ================= -->
+<div class="modal" id="recModal">
+  <div class="mh">
+    <div class="x" onclick="closeRec()">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6l6 6"></path></svg>
+    </div>
+    <div class="t" id="recTitle">Tool</div>
+  </div>
+  <div class="mb">
+
+    <div class="blk">
+      <h3>Media</h3>
+      <div class="pgrid" id="recGrid"></div>
+      <div class="note hidden" id="recNoPhoto" style="background:transparent;padding:8px 0;">No photos on this record.</div>
+      <button class="addph" onclick="recFile.click()">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5l0 14"></path><path d="M5 12l14 0"></path></svg>
+        <span>Add photos</span>
+      </button>
+      <input type="file" id="recFile" accept="image/*" multiple style="display:none">
+    </div>
+
+    <div class="blk">
+      <div class="fld" id="mGrpRef">
+        <label class="f">Tool ID</label>
+        <input class="inp" id="mRef" type="text" autocomplete="off" autocapitalize="characters">
+      </div>
+      <div class="fld">
+        <label class="f">Tool type</label>
+        <button class="pick" id="mTtPick" ontouchstart="tapStart(event)" ontouchmove="tapMove(event)" ontouchcancel="tapCancel(event)" ontouchend="tapEnd(event, mOpenTT)" onclick="tapClick(event, mOpenTT)">
+          <span id="mTtLbl">&mdash;</span>
+          <span class="ar"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6l6 -6"></path></svg></span>
+        </button>
+      </div>
+      <div class="fld">
+        <label class="f">Quantity</label>
+        <div class="qty">
+          <button onclick="mBumpQty(-1)">&minus;</button>
+          <div class="val" id="mQty">1</div>
+          <button onclick="mBumpQty(1)">+</button>
+        </div>
+      </div>
+      <div class="grp2 fld" id="mGrpDieTool">
+      <div id="mGrpDieOp">
+        <label class="f">Die/op</label>
+        <input class="inp" id="mDieOp" type="text" autocomplete="off" autocapitalize="characters">
+      </div>
+      <div id="mGrpToolCode">
+        <label class="f">Tool code</label>
+        <button class="pick" id="mTcPick" ontouchstart="tapStart(event)" ontouchmove="tapMove(event)" ontouchcancel="tapCancel(event)" ontouchend="tapEnd(event, mOpenTC)" onclick="tapClick(event, mOpenTC)">
+          <span id="mTcLbl">&mdash;</span>
+          <span class="ar"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6l6 -6"></path></svg></span>
+        </button>
+      </div>
+      </div>
+
+      <div class="grp2 fld" id="mGrpNpnCap">
+      <div class="ckrow" id="mGrpNpn"
+           ontouchstart="tapStart(event)" ontouchmove="tapMove(event)"
+           ontouchcancel="tapCancel(event)" ontouchend="tapEnd(event, mToggleNpn)"
+           onclick="tapClick(event, mToggleNpn)">
+        <span class="f">NPN</span>
+        <input type="checkbox" class="ck ck-npn" id="mNpnCk" tabindex="-1">
+      </div>
+
+      <div class="ckrow" id="mGrpCap"
+           ontouchstart="tapStart(event)" ontouchmove="tapMove(event)"
+           ontouchcancel="tapCancel(event)" ontouchend="tapEnd(event, mToggleCap)"
+           onclick="tapClick(event, mToggleCap)">
+        <span class="f">Capacity</span>
+        <input type="checkbox" class="ck ck-cap" id="mCapCk" tabindex="-1">
+      </div>
+      </div>
+    </div>
+
+    <div class="blk">
+      <h3>Location</h3>
+      <div class="fld">
+        <label class="f">Site loc</label>
+        <input class="inp" id="mSiteLoc" type="text" autocomplete="off" autocapitalize="characters">
+      </div>
+      <div class="fld">
+        <label class="f">Section / detail location</label>
+        <input class="inp" id="mDetailLoc" type="text" autocomplete="off" autocapitalize="characters">
+      </div>
+      <div class="grp2 fld" id="mGrpRowStack">
+        <div><label class="f">Row NBR</label><input class="inp" id="mRow" type="text" inputmode="numeric" autocomplete="off"></div>
+        <div><label class="f">Stack NBR</label><input class="inp" id="mStack" type="text" inputmode="numeric" autocomplete="off"></div>
+      </div>
+      <div class="grp2 fld" id="mGrpRackShelf">
+        <div><label class="f">Rack NBR</label><input class="inp" id="mRack" type="text" autocomplete="off" autocapitalize="characters"></div>
+        <div><label class="f">Shelf NBR</label><input class="inp" id="mShelf" type="text" autocomplete="off" autocapitalize="characters"></div>
+      </div>
+      <div class="fld" id="mGrpSkid">
+        <label class="f">Skid NBR</label>
+        <input class="inp narrow" id="mSkid" type="text" autocomplete="off" autocapitalize="characters">
+      </div>
+    </div>
+
+    <div class="blk" id="mGrpMeas">
+      <h3>Measurements</h3>
+      <div class="grp3 fld">
+        <div><label class="f">Length</label><input class="inp" id="mLen" type="text" inputmode="decimal" autocomplete="off"></div>
+        <div><label class="f">Width</label><input class="inp" id="mWid" type="text" inputmode="decimal" autocomplete="off"></div>
+        <div><label class="f">Height</label><input class="inp" id="mHgt" type="text" inputmode="decimal" autocomplete="off"></div>
+      </div>
+      <div class="fld">
+        <label class="f">Estimated weight</label>
+        <input class="inp" id="mEw" type="text" inputmode="numeric" autocomplete="off">
+      </div>
+      <div class="fld">
+        <label class="f">Unit</label>
+        <div class="unitrow" id="mUnitRow">
+          <button class="ub on" id="mubLBS" onclick="mPickUnit('LBS')">LBS</button>
+          <button class="ub" id="mubKG" onclick="mPickUnit('KG')">KG</button>
+          <button class="ub" id="mubTONS" onclick="mPickUnit('TONS')">TONS</button>
+        </div>
+      </div>
+      <div class="fld">
+        <label class="f">Calculated weight</label>
+        <div class="inp" id="mCwOut" style="display:flex;align-items:center;background:#f4f6f9;color:#61738a;">&mdash;</div>
+      </div>
+    </div>
+
+    <div class="blk">
+      <h3>Inventory comments</h3>
+      <textarea class="inp" id="mCmt"></textarea>
+    </div>
+
+  </div>
+</div>
+
+<!-- ================= PHOTO VIEWER ================= -->
+<div class="viewer" id="viewer">
+  <div class="vh">
+    <div class="x" onclick="closeViewer()">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6l6 6"></path></svg>
+    </div>
+    <div class="nm" id="vName">photo.jpg</div>
+  </div>
+  <div class="vbody" id="vBody"><img id="vImg" src="" alt=""></div>
+  <div class="dots" id="vDots"></div>
+  <div class="vbar">
+    <button onclick="openPhotoComment()">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9h8"></path><path d="M8 13h6"></path><path d="M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1 -3 3h-5l-5 3v-3h-2a3 3 0 0 1 -3 -3v-8a3 3 0 0 1 3 -3h12z"></path></svg>
+      <span>Comments</span>
+      <i class="cdot hidden" id="vCdot"></i>
+    </button>
+    <button onclick="openVMore()">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h.01"></path><path d="M12 12h.01"></path><path d="M19 12h.01"></path></svg>
+      <span>More</span>
+    </button>
+  </div>
+</div>
+
+<!-- viewer More sheet -->
+<div class="vscrim" id="vScrim" onclick="closeVMore()"></div>
+<div class="vsheet" id="vSheet">
+  <div class="vopt" onclick="editPhotoName()">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4"></path><path d="M13.5 6.5l4 4"></path></svg>
+    <span>Edit name</span>
+  </div>
+  <div class="vopt" onclick="rotatePhoto()">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.95 11a8 8 0 1 0 -.5 4m.5 5v-5h-5"></path></svg>
+    <span>Rotate</span>
+  </div>
+  <div class="vopt danger" onclick="deletePhoto()">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l16 0"></path><path d="M10 11l0 6"></path><path d="M14 11l0 6"></path><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12"></path><path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3"></path></svg>
+    <span>Delete</span>
+  </div>
+  <div class="vcancel" onclick="closeVMore()">Cancel</div>
+</div>
+
+<!-- small edit overlay: photo name / photo comment -->
+<div class="vovl" id="vOvl">
+  <div class="vbox">
+    <div class="vt" id="vOvlTitle">Edit name</div>
+    <input class="inp" id="vOvlInp" type="text" autocomplete="off">
+    <textarea class="inp hidden" id="vOvlTa"></textarea>
+    <div class="vbtns">
+      <button class="c" onclick="closeOvl()">Cancel</button>
+      <button class="s" onclick="saveOvl()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= SHEETS ================= -->
+<div class="scrim" id="scrim" onclick="closeSheet()"></div>
+
+<div class="sheet" id="sheet">
+  <div class="sh">
+    <span id="sheetTitle">Select</span>
+    <span class="x" onclick="closeSheet()">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6l-12 12"></path><path d="M6 6l12 12"></path></svg>
+    </span>
+  </div>
+  <div class="body" id="sheetBody"></div>
+  <div class="addrow hidden" id="addRow">
+    <input class="inp" id="addInp" type="text" placeholder="Add new value" autocomplete="off" autocapitalize="characters">
+    <button onclick="addComboVal()">Add</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================= state ================= */
+var TOOL_TYPES = [
+  "STAMPING DIE","PROGRESSIVE DIE","TRANSFER DIE","TRYOUT DIE",
+  "INJECTION MOLD","MOLD INSERT","BLOW MOLD","COMPRESSION MOLD",
+  "CHECK FIXTURE","WELD FIXTURE","ASSEMBLY FIXTURE","GAUGE",
+  "TRIM FIXTURE","OTHER"
+];
+
+/* TOOL CODE - fixed list, taken from the INV app FIELD_OPTIONS.TOOL_CODE */
+var TOOL_CODES = [
+  "TRN","TRN-2","BLK","BLK-2","PRG","PRG-2","S-TRN","S-TRN-2",
+  "DIE 1","DIE 2","DIE 3","DIE 4","UPR HALF","LWR HALF",
+  "HEM DIE","LINE DIE","DIE SHOE"
+];
+
+var combos = {
+  siteLoc: ["INSIDE PLANT","OUTSIDE YARD","OFFSITE WAREHOUSE"],
+  detailLoc: ["PLANT WEST WALL","PLANT EAST WALL","NORTH BAY","TOOL ROOM"]
+};
+
+/* field visibility - all default visible, all toggle independently */
+var vis = {
+  ref: true, dieOp: true, toolCode: true, npn: true, cap: true,
+  rowStack: true, rackShelf: true, skid: true, meas: true
+};
+
+/* ================= internal record ID =================
+   Every record gets an ID the moment capture starts on it, before anything
+   is typed and before the first photo. Nothing downstream depends on the
+   rep having written anything on the record.
+
+   A site is either data-driven or bottoms-up, never both, so these never
+   have to coexist with Cosmos-issued IDs at the same site. What they DO
+   have to survive is three reps working one site offline, so the ID carries
+   a per-device tag alongside the sequence.
+
+   Cosmos issues the real ID when the site is promoted; this one stays on
+   the record as provenance. */
+var DEV = (function () {
+  var c = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789", t = "", i;
+  for (i = 0; i < 4; i++) { t += c.charAt(Math.floor(Math.random() * c.length)); }
+  return t;
+}());
+var recSeq = 0;
+function newRecId() {
+  recSeq++;
+  var n = String(recSeq);
+  while (n.length < 4) { n = "0" + n; }
+  return "QM-" + DEV + "-" + n;
+}
+
+var cur = {
+  recId: newRecId(),
+  photos: [], ref: "", tt: "", qty: 1, dieOp: "", toolCode: "",
+  npn: false, cap: false,
+  siteLoc: "INSIDE PLANT", detailLoc: "PLANT WEST WALL",
+  unit: "LBS"
+};
+
+var carry = { row: "", stack: "", rack: "", shelf: "", skid: "", len: "", wid: "", hgt: "", ew: "" };
+var session = [];
+var siteMode = { corvac: true, deltar: false };
+var activeSite = "";
+var comboTarget = "";
+var editIdx = -1;
+var editPhotos = [];
+var editTt = "";
+var editQty = 1;
+var editUnit = "LBS";
+var vList = [];
+var vIdx = 0;
+var vCtx = "";
+var vBase = "";
+var ovlMode = "";
+var renameIdx = -1;
+
+/* site-learned unit default */
+var unitPicks = { LBS: 0, KG: 0, TONS: 0 };
+var siteUnitDefault = "LBS";
+var UNIT_LEARN_MIN = 3;
+
+var fileInput = document.getElementById("fileInput");
+var recFile = document.getElementById("recFile");
+
+/* tap guard state - see tapStart / tapMove / tapEnd / tapCancel below */
+var tapX = 0, tapY = 0, tapMoved = false, tapTime = 0, tapScrollY = 0;
+var TAP_SLOP = 14;
+
+/* ================= body scroll lock =================
+   A sheet, the record modal, the photo viewer and the small edit overlay
+   all sit over a scrolling page. Without this the page behind them scrolls
+   under the finger. The counter matters because these nest - viewer, then
+   the More sheet, then the edit overlay - and closing the inner one must
+   not release the lock the outer one is still holding. */
+var lockCount = 0;
+var lockY = 0;
+
+function lockScroll() {
+  if (lockCount === 0) {
+    lockY = window.pageYOffset || document.documentElement.scrollTop || 0;
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+  }
+  lockCount = lockCount + 1;
+}
+
+function unlockScroll() {
+  if (lockCount === 0) return;
+  lockCount = lockCount - 1;
+  if (lockCount > 0) return;
+  document.documentElement.style.overflow = "";
+  document.body.style.overflow = "";
+  window.scrollTo(0, lockY);
+}
+
+function isOn(id) {
+  return document.getElementById(id).className.indexOf(" on") > -1;
+}
+
+/* ================= sites ================= */
+function toggleDetail(id) {
+  event.stopPropagation();
+  var el = document.getElementById("det" + cap(id));
+  el.className = el.className.indexOf("on") > -1 ? "detail" : "detail on";
+}
+function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+function toggleMode(id) {
+  event.stopPropagation();
+  siteMode[id] = !siteMode[id];
+  var sw = document.getElementById("sw" + cap(id));
+  sw.className = siteMode[id] ? "sw on" : "sw";
+  var b = document.getElementById("badge" + cap(id));
+  b.className = siteMode[id] ? "badge quick" : "badge grid";
+  b.innerHTML = siteMode[id] ? "Quick Mode" : "Grid Mode";
+  var c = document.getElementById("cnt" + cap(id));
+  if (id === "corvac") {
+    c.innerHTML = siteMode[id] ? countLabel() : "0 records &middot; 0% complete";
+  } else {
+    c.innerHTML = siteMode[id] ? "0 tools captured" : "1,051 records &middot; 38% complete";
+  }
+}
+
+function countLabel() {
+  return session.length === 1 ? "1 tool captured" : session.length + " tools captured";
+}
+
+function openSite(id) {
+  if (!siteMode[id]) { toast("Grid Mode is not part of this mockup"); return; }
+  activeSite = id;
+  document.getElementById("scrSites").className = "screen";
+  document.getElementById("scrCapture").className = "screen on";
+  document.getElementById("foot").className = "foot";
+  document.getElementById("backBtn").className = "back";
+  document.getElementById("hdrCount").className = "cnt";
+  document.getElementById("hdrGear").className = "gear";
+  document.getElementById("hdrTitle").innerHTML = id === "corvac" ? "CORVAC" : "ITW DELTAR";
+  document.getElementById("hdrSub").innerHTML = "Quick Mode";
+  refreshCount();
+  applyVis();
+  paintForm();
+  showTab("cap");
+  window.scrollTo(0, 0);
+}
+
+function goSites() {
+  document.getElementById("scrCapture").className = "screen";
+  document.getElementById("scrSites").className = "screen on";
+  document.getElementById("foot").className = "foot hidden";
+  document.getElementById("backBtn").className = "back hidden";
+  document.getElementById("hdrCount").className = "cnt hidden";
+  document.getElementById("hdrGear").className = "gear hidden";
+  document.getElementById("hdrTitle").innerHTML = "ToolSight";
+  document.getElementById("hdrSub").innerHTML = "Sites";
+  document.getElementById("cntCorvac").innerHTML = countLabel();
+  window.scrollTo(0, 0);
+}
+
+/* ================= tabs ================= */
+function showTab(w) {
+  var c = w === "cap";
+  document.getElementById("tabCap").className = c ? "on" : "";
+  document.getElementById("tabList").className = c ? "" : "on";
+  document.getElementById("paneCap").className = c ? "" : "hidden";
+  document.getElementById("paneList").className = c ? "hidden" : "";
+  document.getElementById("foot").className = c ? "foot" : "foot hidden";
+  window.scrollTo(0, 0);
+}
+
+/* ================= photo naming =================
+   Filenames derive from the INTERNAL RECORD ID, not from the reference:
+   QM-7K2P-0001_1.jpg, QM-7K2P-0001_2.jpg ...
+
+   The reference used to be the base, which meant photos carried a
+   placeholder until the rep typed something, then quietly renamed
+   themselves. With the reference now optional that placeholder would have
+   been permanent on most tools, and two tools stencilled the same would
+   have collided. The record ID exists from the first shutter press and is
+   unique by construction, so neither happens.
+
+   A name set by hand through Edit name still wins and is never overwritten. */
+function photoLabel(list, i, base) {
+  var p = list[i];
+  if (p && p.custom && p.custom.length) return p.custom;
+  var b = base ? String(base).replace(/[^A-Za-z0-9_\-]/g, "") : "";
+  if (!b.length) return "Photo " + (i + 1) + ".jpg";
+  return b + "_" + (i + 1) + ".jpg";
+}
+
+/* ================= photos - capture ================= */
+fileInput.onchange = function () {
+  var fs = fileInput.files;
+  for (var i = 0; i < fs.length; i++) {
+    cur.photos.push({ url: URL.createObjectURL(fs[i]), custom: "", comment: "" });
+  }
+  fileInput.value = "";
+  paintStrip();
+  checkNext();
+};
+
+function paintStrip() {
+  var s = document.getElementById("strip");
+  if (!cur.photos.length) {
+    s.innerHTML = '<div class="none">No photos yet &mdash; shoot everything for this tool, then come back.</div>';
+    return;
+  }
+  var h = "";
+  for (var i = 0; i < cur.photos.length; i++) {
+    h += '<div class="ph"><img src="' + cur.photos[i].url + '" style="transform:rotate(' +
+         (cur.photos[i].rot || 0) + 'deg)" onclick="openViewer(\'cur\',' + i + ')">' +
+         '<div class="rm" onclick="rmPhoto(' + i + ')">' +
+         '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M18 6l-12 12"></path><path d="M6 6l12 12"></path></svg>' +
+         '</div></div>';
+  }
+  s.innerHTML = h;
+}
+
+function rmPhoto(i) { event.stopPropagation(); cur.photos.splice(i, 1); paintStrip(); checkNext(); }
+
+/* ================= select-all on focus =================
+   The cursor used to land at the far right of whatever was already in the
+   field, so correcting an entry meant backspacing it away one character at
+   a time. Focusing a short field now selects the whole value - type straight
+   over it, or tap a second time inside to put the cursor where you want it.
+   Comments are deliberately excluded: there you are almost always adding to
+   what is already written, and one stray tap would wipe the lot. Comments
+   are textareas, so simply not walking them keeps them out. */
+function selOnFocus(el) {
+  el.onfocus = function () {
+    var self = this;
+    /* deferred, because the tap that gave focus also places the caret */
+    setTimeout(function () {
+      if (document.activeElement !== self) return;
+      try { self.select(); } catch (err) {}
+    }, 0);
+  };
+}
+function wireSelectAll() {
+  var all = document.getElementsByTagName("input");
+  for (var i = 0; i < all.length; i++) {
+    if (all[i].className.indexOf("inp") < 0) continue;
+    selOnFocus(all[i]);
+  }
+}
+
+/* ================= form ================= */
+document.getElementById("refInp").oninput = function () {
+  cur.ref = this.value;
+  checkNext();
+};
+
+/* Enter / Next on the reference field goes straight to tool type,
+   so the thumb already at the keyboard does the work. */
+document.getElementById("refInp").onkeydown = function (e) {
+  var k = e.keyCode || e.which;
+  if (k !== 13) return;
+  e.preventDefault();
+  this.blur();
+  dieOpSuggest();
+  openTT();
+};
+
+document.getElementById("refInp").onblur = function () { dieOpSuggest(); };
+
+/* ---- Enter chain through the measurements block ----
+   Length, width, height and estimated weight hand off to each other so the
+   thumb never leaves the keyboard. Estimated weight is where it stops.
+
+   Enter there does NOT jump to comments. The unit row is three tap buttons,
+   not a keyboard field, and the site-learned default means it can already be
+   sitting on kilograms or tons from an earlier tool. Carrying straight past
+   it is how 4000 pounds silently becomes 4000 tons. So Enter drops the
+   keyboard and lands on the unit row with the current choice visibly
+   focused - confirm it with another Enter, or tap a different one. */
+function chainTo(nextId) {
+  return function (e) {
+    var k = e.keyCode || e.which;
+    if (k !== 13) return;
+    e.preventDefault();
+    document.getElementById(nextId).focus();
+  };
+}
+document.getElementById("lenInp").onkeydown = chainTo("widInp");
+document.getElementById("widInp").onkeydown = chainTo("hgtInp");
+document.getElementById("hgtInp").onkeydown = chainTo("ewInp");
+
+document.getElementById("ewInp").onkeydown = function (e) {
+  var k = e.keyCode || e.which;
+  if (k !== 13) return;
+  e.preventDefault();
+  this.blur();
+  var b = document.getElementById("ub" + cur.unit);
+  b.focus();
+  if (b.scrollIntoView) b.scrollIntoView({ block: "center" });
+};
+
+/* Enter on a focused unit button moves on to comments. It must not be left
+   to fire the button's own click - that would re-pick the same unit and
+   nudge the site-learned default on a keypress that meant "next". */
+function wireUnitKeys() {
+  var u = ["LBS", "KG", "TONS"];
+  for (var i = 0; i < u.length; i++) {
+    document.getElementById("ub" + u[i]).onkeydown = function (e) {
+      var k = e.keyCode || e.which;
+      if (k !== 13) return;
+      e.preventDefault();
+      this.blur();
+      document.getElementById("cmtInp").focus();
+    };
+  }
+}
+
+document.getElementById("doInp").oninput = function () { cur.dieOp = this.value; };
+
+/* Opens a sheet in ONE press even when the keyboard is up, WITHOUT firing
+   when the thumb is only scrolling past the button.
+   v3 opened on touch-down, which meant a scroll that began on a picker
+   popped the sheet. v4 waits for touch-up and opens only if the finger
+   never moved more than a few pixels. A real tap barely moves, so the
+   one-press behaviour survives; a scroll is ignored. */
+function scrollNow() {
+  return window.pageYOffset || document.documentElement.scrollTop || 0;
+}
+function tapStart(e) {
+  if (!e.touches || !e.touches.length) return;
+  tapX = e.touches[0].clientX;
+  tapY = e.touches[0].clientY;
+  tapScrollY = scrollNow();
+  tapMoved = false;
+}
+function tapMove(e) {
+  if (tapMoved) return;
+  if (!e.touches || !e.touches.length) return;
+  var dx = Math.abs(e.touches[0].clientX - tapX);
+  var dy = Math.abs(e.touches[0].clientY - tapY);
+  if (dx > TAP_SLOP || dy > TAP_SLOP) tapMoved = true;
+}
+/* The browser hands a scroll to the compositor and stops telling us about
+   it, so touchcancel is the only notice we get that the finger left. */
+function tapCancel(e) {
+  tapMoved = true;
+  tapTime = new Date().getTime();
+}
+function tapEnd(e, fn) {
+  tapTime = new Date().getTime();
+  /* Do not trust touchmove on its own. Once Chrome hands the scroll to the
+     compositor it stops dispatching touchmove to this element, so a slow
+     drag could reach touch-up still looking like a tap. Touch-up carries
+     its own coordinates - measure them against touch-down directly - and
+     if the page scrolled by so much as a pixel it was never a tap. */
+  if (scrollNow() !== tapScrollY) tapMoved = true;
+  if (!tapMoved && e && e.changedTouches && e.changedTouches.length) {
+    var dx = Math.abs(e.changedTouches[0].clientX - tapX);
+    var dy = Math.abs(e.changedTouches[0].clientY - tapY);
+    if (dx > TAP_SLOP || dy > TAP_SLOP) tapMoved = true;
+  }
+  if (tapMoved) return;
+  if (e && e.preventDefault) e.preventDefault();
+  var a = document.activeElement;
+  if (a && a.blur) a.blur();
+  fn();
+}
+/* non-touch fallback; suppressed if a touch just handled this button */
+function tapClick(e, fn) {
+  if (new Date().getTime() - tapTime < 700) return;
+  var a = document.activeElement;
+  if (a && a.blur) a.blur();
+  fn();
+}
+
+/* NPN and CAPACITY are plain checkboxes now, in the same order the INV
+   schema carries them - after tool code, before site loc.
+
+   NPN used to be a button that wrote the word NPN into the reference. It
+   isn't a reference, it's a flag, and the number that eventually stands in
+   for it is issued at the desk where the whole site is visible - a rep on
+   the floor cannot know he is looking at the first NPN or the seventh when
+   two other reps are working the same plant. So the floor raises the flag
+   and the desk does the numbering. */
+function setNpn(v) { cur.npn = !!v; }
+function setCap(v) { cur.cap = !!v; }
+
+/* The row toggles the box, not the other way round - the box takes no
+   pointer events, so this is the only path in and it runs behind the
+   same drag guard the pickers use. */
+function toggleNpn() {
+  var el = document.getElementById("npnCk");
+  el.checked = !el.checked;
+  setNpn(el.checked);
+}
+function toggleCap() {
+  var el = document.getElementById("capCk");
+  el.checked = !el.checked;
+  setCap(el.checked);
+}
+
+function bumpQty(d) {
+  cur.qty = Math.max(1, cur.qty + d);
+  document.getElementById("qtyVal").innerHTML = cur.qty;
+  calcWeight();
+}
+
+/* The gate asks the two questions the desk cannot answer from the photos.
+   It used to demand a reference, which asked the rep to identify the tool -
+   but identification happens at the desk, off the images, with the supplier
+   data alongside. What the desk genuinely cannot recover is an image that
+   was never taken, and what the tool IS, which is not written anywhere on
+   it and only the person standing in front of it can say.
+
+   So: one photo and a tool type. Everything else is optional. */
+function checkNext() {
+  var miss = [];
+  if (!cur.photos.length) miss.push("a photo");
+  if (!cur.tt || !cur.tt.length) miss.push("tool type");
+  document.getElementById("nextBtn").disabled = miss.length > 0;
+  document.getElementById("missMsg").innerHTML = miss.length ? "NEEDS " + miss.join(" AND ").toUpperCase() : "";
+}
+
+/* ================= die / op bookkeeping ================= */
+/* A reference is not unique. Capacity tooling repeats it, and so does a
+   transfer or progressive die set broken apart into separate operations.
+   When the same reference comes round again the app proposes the next
+   die number so the desk can tell them apart. A stamped op number
+   typed by the rep always wins. */
+function dieOpSuggest() {
+  var el = document.getElementById("doHint");
+  var inp = document.getElementById("doInp");
+  if (!vis.dieOp) { el.className = "hintline hidden"; return; }
+  var ref = cur.ref;
+  if (!ref || !ref.length) { el.className = "hintline hidden"; return; }
+  var hits = [];
+  for (var i = 0; i < session.length; i++) {
+    if (session[i].ref === ref) hits.push(i);
+  }
+  if (!hits.length) { el.className = "hintline hidden"; return; }
+
+  /* label the earlier one if it was never given a die op */
+  var first = session[hits[0]];
+  if (!first.dieOp || !first.dieOp.length) {
+    first.dieOp = "DIE 1";
+    paintList();
+    toast("Earlier " + ref + " labelled DIE 1");
+  }
+
+  var next = hits.length + 1;
+  el.innerHTML = esc(ref) + " already captured " + hits.length +
+    (hits.length === 1 ? " time" : " times") + " on this site \u2014 proposed DIE " + next +
+    ". Change it if the tool carries a real op number.";
+  el.className = "hintline";
+  if (!inp.value.length || inp.value.indexOf("DIE ") === 0) {
+    inp.value = "DIE " + next;
+    cur.dieOp = inp.value;
+  }
+}
+
+/* ================= sheets ================= */
+function openSheet(title, html, showAdd) {
+  var already = isOn("sheet");
+  document.getElementById("sheetTitle").innerHTML = title;
+  document.getElementById("sheetBody").innerHTML = html;
+  document.getElementById("addRow").className = showAdd ? "addrow" : "addrow hidden";
+  document.getElementById("scrim").className = "scrim on";
+  document.getElementById("sheet").className = "sheet on";
+  if (!already) lockScroll();
+}
+function closeSheet() {
+  if (!isOn("sheet")) return;
+  document.getElementById("scrim").className = "scrim";
+  document.getElementById("sheet").className = "sheet";
+  document.getElementById("addInp").value = "";
+  unlockScroll();
+}
+
+function listHtml(items, selected, fn, note) {
+  var h = "";
+  for (var i = 0; i < items.length; i++) {
+    var sel = items[i] === selected ? " sel" : "";
+    h += '<div class="opt' + sel + '" onclick="' + fn + '(\'' + items[i] + '\')">' + items[i] +
+         '<span class="ck"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5l10 -10"></path></svg></span></div>';
+  }
+  if (note) h += '<div class="note">' + note + '</div>';
+  return h;
+}
+
+var FIXED_NOTE = "Fixed list. Values cannot be added on the floor.";
+
+function openTT() { openSheet("Tool type", listHtml(TOOL_TYPES, cur.tt, "pickTT", FIXED_NOTE), false); }
+function pickTT(v) {
+  cur.tt = v;
+  document.getElementById("ttPick").className = "pick";
+  document.getElementById("ttLbl").innerHTML = v;
+  closeSheet();
+  checkNext();
+}
+
+function mOpenTT() { openSheet("Tool type", listHtml(TOOL_TYPES, editTt, "mPickTT", FIXED_NOTE), false); }
+function mPickTT(v) {
+  editTt = v;
+  document.getElementById("mTtLbl").innerHTML = v;
+  closeSheet();
+  mSave("tt", v);
+}
+
+function openTC() { openSheet("Tool code", listHtml(TOOL_CODES, cur.toolCode, "pickTC", FIXED_NOTE), false); }
+function pickTC(v) {
+  cur.toolCode = v;
+  document.getElementById("tcPick").className = "pick";
+  document.getElementById("tcLbl").innerHTML = v;
+  closeSheet();
+}
+
+function mOpenTC() {
+  var r = editIdx > -1 ? session[editIdx] : null;
+  openSheet("Tool code", listHtml(TOOL_CODES, r ? r.toolCode : "", "mPickTC", FIXED_NOTE), false);
+}
+function mPickTC(v) {
+  document.getElementById("mTcLbl").innerHTML = v;
+  closeSheet();
+  mSave("toolCode", v);
+}
+
+function openComboSite() { openCombo("siteLoc"); }
+function openComboDetail() { openCombo("detailLoc"); }
+
+function openCombo(which) {
+  comboTarget = which;
+  var list = combos[which];
+  var curv = cur[which];
+  var h = "";
+  for (var i = 0; i < list.length; i++) {
+    var sel = list[i] === curv ? " sel" : "";
+    h += '<div class="opt' + sel + '">' +
+         '<span class="lbl" onclick="pickCombo(' + i + ')">' + esc(list[i]) + '</span>' +
+         '<span class="ck"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5l10 -10"></path></svg></span>' +
+         '<span class="edit" onclick="openRename(' + i + ')">' +
+         '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4"></path><path d="M13.5 6.5l4 4"></path></svg>' +
+         '</span></div>';
+  }
+  h += '<div class="note">Tap a value to use it. Tap the pencil to rename it \u2014 ' +
+       'every record on this site carrying the old value is updated, and so is the tool ' +
+       'you are working on now.</div>';
+  openSheet(which === "siteLoc" ? "Site loc" : "Section / detail location", h, true);
+}
+function pickCombo(i) {
+  cur[comboTarget] = combos[comboTarget][i];
+  paintLoc();
+  closeSheet();
+}
+
+/* ---- rename with cascade ----
+   With one rep the location list stays consistent by accident. With three
+   reps on one site, one types WEST WALL and another adds PLANT WEST WALL,
+   and one physical place is now two values. Somebody has to be able to fix
+   that after the fact, and the fix has to reach the records already captured. */
+function openRename(i) {
+  event.stopPropagation();
+  renameIdx = i;
+  openOvl("rename", "Rename value", combos[comboTarget][i], false);
+}
+
+function applyRename(nv) {
+  var list = combos[comboTarget];
+  var old = list[renameIdx];
+  if (nv === old) { closeOvl(); return; }
+
+  /* A rename onto a value that already exists would silently merge two
+     locations into one with no way back. Blocked, not merged. */
+  for (var i = 0; i < list.length; i++) {
+    if (i !== renameIdx && list[i] === nv) {
+      toast(nv + " already exists on this site");
+      return;
+    }
+  }
+
+  list[renameIdx] = nv;
+  var n = 0;
+  for (var j = 0; j < session.length; j++) {
+    if (session[j][comboTarget] === old) { session[j][comboTarget] = nv; n = n + 1; }
+  }
+  if (cur[comboTarget] === old) cur[comboTarget] = nv;
+
+  /* if a record happens to be open, its fields follow too */
+  if (editIdx > -1) {
+    document.getElementById("mSiteLoc").value = session[editIdx].siteLoc;
+    document.getElementById("mDetailLoc").value = session[editIdx].detailLoc;
+  }
+
+  closeOvl();
+  paintLoc();
+  paintList();
+  openCombo(comboTarget);
+  toast(n ? "Renamed \u2014 " + n + (n === 1 ? " record updated" : " records updated") : "Renamed");
+}
+function addComboVal() {
+  var v = document.getElementById("addInp").value;
+  if (!v || !v.length) return;
+  v = v.toUpperCase();
+  combos[comboTarget].push(v);
+  cur[comboTarget] = v;
+  paintLoc();
+  closeSheet();
+  toast("Added \u2014 available to every record on this site");
+}
+
+/* ================= weight unit ================= */
+/* UNIT is a WEIGHT unit, matching the INV app: LBS / KG / TONS, default LBS.
+   Length, width and height are plain numbers in inches with no unit picker,
+   again matching INV. */
+function pickUnit(v) {
+  cur.unit = v;
+  unitPicks[v] = unitPicks[v] + 1;
+  learnUnit();
+  paintUnit();
+  calcWeight();
+}
+
+function learnUnit() {
+  var best = "LBS", n = 0, k;
+  for (k in unitPicks) {
+    if (unitPicks.hasOwnProperty(k) && unitPicks[k] > n) { n = unitPicks[k]; best = k; }
+  }
+  siteUnitDefault = n >= UNIT_LEARN_MIN ? best : "LBS";
+}
+
+function paintUnit() {
+  var u = ["LBS", "KG", "TONS"];
+  for (var i = 0; i < u.length; i++) {
+    document.getElementById("ub" + u[i]).className = cur.unit === u[i] ? "ub on" : "ub";
+  }
+  var row = document.getElementById("unitRow");
+  var hint = document.getElementById("unHint");
+  if (siteUnitDefault !== "LBS") {
+    row.className = "unitrow learned";
+    hint.innerHTML = "This site now defaults to " + unitWord(siteUnitDefault) +
+      " because that is what is being used here. Check it before you type a weight.";
+    hint.className = "hintline";
+  } else {
+    row.className = "unitrow";
+    hint.className = "hintline hidden";
+  }
+}
+
+function unitWord(u) {
+  if (u === "KG") return "KILOGRAMS";
+  if (u === "TONS") return "TONS";
+  return "POUNDS";
+}
+
+/* ================= weight ================= */
+/* Real INV formula: CALCULATED_WEIGHT = ESTIMATED_WEIGHT x QUANTITY,
+   converted to pounds. LBS x1, KG x2.2046 (1dp), TONS x2204.6 (0dp). */
+function calcLbs(ew, qty, unit) {
+  var w = parseFloat(ew) || 0;
+  var q = parseFloat(qty) || 1;
+  if (!w) return "";
+  if (unit === "KG")   return (w * q * 2.2046).toFixed(1);
+  if (unit === "TONS") return (w * q * 2204.6).toFixed(0);
+  return String(w * q);
+}
+
+function calcWeight() {
+  var out = document.getElementById("cwOut");
+  var v = calcLbs(document.getElementById("ewInp").value, cur.qty, cur.unit);
+  out.innerHTML = v.length ? Number(v).toLocaleString() + " lbs" : "&mdash;";
+}
+document.getElementById("ewInp").oninput = calcWeight;
+
+function paintLoc() {
+  document.getElementById("slLbl").innerHTML = cur.siteLoc || "&mdash;";
+  document.getElementById("dlLbl").innerHTML = cur.detailLoc || "&mdash;";
+}
+
+/* ================= settings ================= */
+function openSettings() {
+  var h = "";
+  h += swRow("ref", "Reference", "Whatever is written on the tool");
+  h += swRow("dieOp", "Die/op", "Which operation of a die set this is");
+  h += swRow("toolCode", "Tool code", "TRN, PRG, UPR HALF, DIE SHOE and so on");
+  h += swRow("npn", "NPN", "No part number - ownership mark only");
+  h += swRow("cap", "Capacity", "Capacity tooling");
+  h += swRow("rowStack", "Row and stack", "Floor-stored areas");
+  h += swRow("rackShelf", "Rack and shelf", "Racked areas");
+  h += swRow("skid", "Skid NBR", "");
+  h += swRow("meas", "Measurements", "Length, width, height, estimated weight, unit");
+  h += '<div class="note">Hidden fields keep their last value for when they are turned back on, ' +
+       'but stop writing to new records while hidden. Blank at the desk is recoverable. Wrong is not.<br><br>' +
+       'These toggles also control what the record shows when you open it from the Tool List. ' +
+       'A hidden field that already holds a value on that record is still shown, so nothing ' +
+       'becomes invisible once it has been captured.</div>';
+  openSheet("Fields captured", h, false);
+}
+function swRow(key, label, hint) {
+  return '<div class="opt" style="align-items:flex-start;">' +
+    '<div><div>' + label + '</div>' +
+    (hint ? '<div style="font-size:12px;color:#7b8b9e;margin-top:4px;">' + hint + '</div>' : '') +
+    '</div>' +
+    '<div class="sw' + (vis[key] ? ' on' : '') + '" style="margin-left:auto;margin-top:2px;" onclick="flipVis(\'' + key + '\',this)"><i></i></div>' +
+    '</div>';
+}
+function flipVis(key, el) {
+  vis[key] = !vis[key];
+  el.className = vis[key] ? "sw on" : "sw";
+  applyVis();
+}
+function applyVis() {
+  document.getElementById("grpRef").className = vis.ref ? "fld" : "fld hidden";
+  /* Die/op and Tool code now share a row, as do NPN and Capacity. Each pair
+     collapses: hide one half and the survivor takes the full width, so a lone
+     field never sits at half width with a hole beside it. Hide both and the
+     wrapper goes too, or its row margin would leave a gap. */
+  document.getElementById("grpDieOp").className = vis.dieOp ? "" : "hidden";
+  document.getElementById("grpToolCode").className = vis.toolCode ? "" : "hidden";
+  document.getElementById("grpDieTool").className = (vis.dieOp || vis.toolCode) ? "grp2 fld" : "grp2 fld hidden";
+  document.getElementById("grpNpn").className = vis.npn ? "ckrow" : "ckrow hidden";
+  document.getElementById("grpCap").className = vis.cap ? "ckrow" : "ckrow hidden";
+  document.getElementById("grpNpnCap").className = (vis.npn || vis.cap) ? "grp2 fld" : "grp2 fld hidden";
+  document.getElementById("grpRowStack").className = vis.rowStack ? "grp2 fld" : "grp2 fld hidden";
+  document.getElementById("grpRackShelf").className = vis.rackShelf ? "grp2 fld" : "grp2 fld hidden";
+  document.getElementById("grpSkid").className = vis.skid ? "fld" : "fld hidden";
+  document.getElementById("grpMeas").className = vis.meas ? "blk" : "blk hidden";
+}
+
+/* The record modal obeys the same toggles, with one exception: a hidden
+   group that already holds a value on this record is shown anyway, so
+   captured data can never become unreachable. */
+function has() {
+  for (var i = 0; i < arguments.length; i++) {
+    var v = arguments[i];
+    if (v !== null && v !== undefined && String(v).length) return true;
+  }
+  return false;
+}
+function applyModalVis(r) {
+  var showRf = vis.ref || has(r.ref);
+  var showNp = vis.npn || r.npn;
+  var showCp = vis.cap || r.cap;
+  var showDo = vis.dieOp || has(r.dieOp);
+  var showTc = vis.toolCode || has(r.toolCode);
+  var showRs = vis.rowStack || has(r.row, r.stack);
+  var showRh = vis.rackShelf || has(r.rack, r.shelf);
+  var showSk = vis.skid || has(r.skid);
+  var showMs = vis.meas || has(r.len, r.wid, r.hgt, r.ew);
+  document.getElementById("mGrpRef").className = showRf ? "fld" : "fld hidden";
+  document.getElementById("mGrpNpn").className = showNp ? "ckrow" : "ckrow hidden";
+  document.getElementById("mGrpCap").className = showCp ? "ckrow" : "ckrow hidden";
+  document.getElementById("mGrpNpnCap").className = (showNp || showCp) ? "grp2 fld" : "grp2 fld hidden";
+  document.getElementById("mGrpDieOp").className = showDo ? "" : "hidden";
+  document.getElementById("mGrpToolCode").className = showTc ? "" : "hidden";
+  document.getElementById("mGrpDieTool").className = (showDo || showTc) ? "grp2 fld" : "grp2 fld hidden";
+  document.getElementById("mGrpRowStack").className = showRs ? "grp2 fld" : "grp2 fld hidden";
+  document.getElementById("mGrpRackShelf").className = showRh ? "grp2 fld" : "grp2 fld hidden";
+  document.getElementById("mGrpSkid").className = showSk ? "fld" : "fld hidden";
+  document.getElementById("mGrpMeas").className = showMs ? "blk" : "blk hidden";
+}
+
+/* ================= save ================= */
+function readCarry() {
+  if (vis.rowStack) {
+    carry.row = document.getElementById("rowInp").value;
+    carry.stack = document.getElementById("stackInp").value;
+  }
+  if (vis.rackShelf) {
+    carry.rack = document.getElementById("rackInp").value;
+    carry.shelf = document.getElementById("shelfInp").value;
+  }
+  if (vis.skid) carry.skid = document.getElementById("skidInp").value;
+  if (vis.meas) {
+    carry.len = document.getElementById("lenInp").value;
+    carry.wid = document.getElementById("widInp").value;
+    carry.hgt = document.getElementById("hgtInp").value;
+    carry.ew = document.getElementById("ewInp").value;
+  }
+}
+
+function nextTool() {
+  readCarry();
+  var r = {
+    recId: cur.recId,
+    ref: vis.ref ? cur.ref : "",
+    npn: vis.npn ? cur.npn : false,
+    cap: vis.cap ? cur.cap : false,
+    tt: cur.tt, qty: cur.qty,
+    dieOp: vis.dieOp ? document.getElementById("doInp").value : "",
+    toolCode: vis.toolCode ? cur.toolCode : "",
+    photos: cur.photos.slice(0),
+    comments: document.getElementById("cmtInp").value,
+    siteLoc: cur.siteLoc, detailLoc: cur.detailLoc,
+    row: vis.rowStack ? carry.row : "", stack: vis.rowStack ? carry.stack : "",
+    rack: vis.rackShelf ? carry.rack : "", shelf: vis.rackShelf ? carry.shelf : "",
+    skid: vis.skid ? carry.skid : "",
+    len: vis.meas ? carry.len : "", wid: vis.meas ? carry.wid : "",
+    hgt: vis.meas ? carry.hgt : "", ew: vis.meas ? carry.ew : "",
+    unit: vis.meas ? cur.unit : "LBS"
+  };
+  session.push(r);
+
+  cur.recId = newRecId();
+  cur.photos = [];
+  cur.ref = "";
+  cur.tt = "";
+  cur.qty = 1;
+  cur.dieOp = "";
+  cur.toolCode = "";
+  cur.npn = false;
+  cur.cap = false;
+  cur.unit = siteUnitDefault;
+  document.getElementById("cmtInp").value = "";
+
+  paintForm();
+  paintList();
+  refreshCount();
+  toast("Tool " + session.length + " captured");
+  window.scrollTo(0, 0);
+}
+
+function paintForm() {
+  document.getElementById("refInp").value = "";
+  document.getElementById("ttPick").className = "pick empty";
+  document.getElementById("ttLbl").innerHTML = "Select tool type";
+  document.getElementById("qtyVal").innerHTML = "1";
+  document.getElementById("doInp").value = "";
+  document.getElementById("doHint").className = "hintline hidden";
+  document.getElementById("tcPick").className = "pick empty";
+  document.getElementById("tcLbl").innerHTML = "&mdash;";
+  document.getElementById("npnCk").checked = false;
+  document.getElementById("capCk").checked = false;
+  paintStrip();
+  paintLoc();
+  document.getElementById("rowInp").value = carry.row;
+  document.getElementById("stackInp").value = carry.stack;
+  document.getElementById("rackInp").value = carry.rack;
+  document.getElementById("shelfInp").value = carry.shelf;
+  document.getElementById("skidInp").value = carry.skid;
+  document.getElementById("lenInp").value = carry.len;
+  document.getElementById("widInp").value = carry.wid;
+  document.getElementById("hgtInp").value = carry.hgt;
+  document.getElementById("ewInp").value = carry.ew;
+  paintUnit();
+  calcWeight();
+  checkNext();
+}
+
+function refreshCount() {
+  document.getElementById("hdrCount").innerHTML = session.length;
+}
+
+/* ================= tool list ================= */
+function paintList() {
+  var el = document.getElementById("listWrap");
+  if (!session.length) {
+    el.innerHTML = '<div class="empt">No tools captured yet.</div>';
+    return;
+  }
+  var h = "";
+  for (var i = session.length - 1; i >= 0; i--) {
+    var r = session[i];
+    var thumb;
+    if (r.photos.length) {
+      thumb = '<img src="' + r.photos[0].url + '" alt="">';
+      if (r.photos.length > 1) thumb += '<div class="badge2">' + r.photos.length + '</div>';
+    } else {
+      thumb = '<div class="nophoto"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 8h.01"></path><path d="M3 6a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v12a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3v-12z"></path><path d="M3 16l5 -5c.928 -.893 2.072 -.893 3 0l5 5"></path><path d="M14 14l1 -1c.928 -.893 2.072 -.893 3 0l3 3"></path></svg></div>';
+    }
+    var cmt = r.comments && r.comments.length ?
+      '<span class="cmt"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9h8"></path><path d="M8 13h6"></path><path d="M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1 -3 3h-5l-5 3v-3h-2a3 3 0 0 1 -3 -3v-8a3 3 0 0 1 3 -3h12z"></path></svg></span>' : '';
+    var sub = r.tt;
+    if (r.dieOp && r.dieOp.length) sub += " &middot; " + esc(r.dieOp);
+    if (r.toolCode && r.toolCode.length) sub += " &middot; " + esc(r.toolCode);
+    if (r.qty > 1) sub += " &middot; qty " + r.qty;
+    h += '<div class="rec" onclick="openRec(' + i + ')">' +
+      '<div class="txt">' +
+        '<div class="ref">' + refLine(r) + cmt + '</div>' +
+        '<div class="tt">' + sub + '</div>' +
+      '</div>' +
+      '<div class="thumbwrap">' + thumb + '</div>' +
+      '</div>';
+  }
+  el.innerHTML = h;
+}
+
+/* With the reference optional, most records will not have one. The list
+   still needs a handle, so it falls back to the internal record ID -
+   greyed, because it is the app's number and not something read off the
+   tool. NPN and capacity ride alongside as flags. */
+function refLine(r) {
+  var h = (r.ref && r.ref.length)
+        ? esc(r.ref)
+        : '<span class="rid">' + esc(r.recId || "") + '</span>';
+  if (r.npn) h += '<span class="npnf">NPN</span>';
+  if (r.cap) h += '<span class="capf">CAP</span>';
+  return h;
+}
+
+function esc(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/* ================= record modal ================= */
+/* No Save button. Every edit commits as it is made, the same way the
+   INV app behaves. There is no record delete in Quick Mode: the record
+   is the only trace this tool was ever seen. */
+function openRec(i) {
+  editIdx = i;
+  var r = session[i];
+  editPhotos = r.photos;          /* live reference, not a copy - autosave */
+  editTt = r.tt;
+  editQty = r.qty;
+  editUnit = r.unit || "LBS";
+  document.getElementById("recTitle").innerHTML = "Tool " + (i + 1);
+  document.getElementById("mRef").value = r.ref;
+  document.getElementById("mTtLbl").innerHTML = r.tt || "&mdash;";
+  document.getElementById("mQty").innerHTML = r.qty;
+  document.getElementById("mDieOp").value = r.dieOp || "";
+  document.getElementById("mTcLbl").innerHTML = (r.toolCode && r.toolCode.length) ? r.toolCode : "&mdash;";
+  document.getElementById("mNpnCk").checked = !!r.npn;
+  document.getElementById("mCapCk").checked = !!r.cap;
+  document.getElementById("mSiteLoc").value = r.siteLoc;
+  document.getElementById("mDetailLoc").value = r.detailLoc;
+  document.getElementById("mRow").value = r.row;
+  document.getElementById("mStack").value = r.stack;
+  document.getElementById("mRack").value = r.rack;
+  document.getElementById("mShelf").value = r.shelf;
+  document.getElementById("mSkid").value = r.skid;
+  document.getElementById("mLen").value = r.len;
+  document.getElementById("mWid").value = r.wid;
+  document.getElementById("mHgt").value = r.hgt;
+  document.getElementById("mEw").value = r.ew;
+  document.getElementById("mCmt").value = r.comments || "";
+  mPaintUnit();
+  mCalcWeight();
+  applyModalVis(r);
+  paintRecGrid();
+  document.getElementById("recModal").className = "modal on";
+  lockScroll();
+}
+
+function closeRec() {
+  if (!isOn("recModal")) return;
+  document.getElementById("recModal").className = "modal";
+  editIdx = -1;
+  unlockScroll();
+}
+
+/* single autosave path for every field in the modal */
+function mSave(key, val) {
+  if (editIdx < 0) return;
+  var r = session[editIdx];
+  r[key] = val;
+
+  if (key === "ew" || key === "qty" || key === "unit") mCalcWeight();
+  paintList();
+}
+
+function mWire(id, key) {
+  document.getElementById(id).oninput = function () { mSave(key, this.value); };
+}
+mWire("mRef", "ref");
+mWire("mDieOp", "dieOp");
+mWire("mSiteLoc", "siteLoc");
+mWire("mDetailLoc", "detailLoc");
+mWire("mRow", "row");
+mWire("mStack", "stack");
+mWire("mRack", "rack");
+mWire("mShelf", "shelf");
+mWire("mSkid", "skid");
+mWire("mLen", "len");
+mWire("mWid", "wid");
+mWire("mHgt", "hgt");
+mWire("mEw", "ew");
+mWire("mCmt", "comments");
+
+function mPickUnit(v) {
+  editUnit = v;
+  mPaintUnit();
+  mSave("unit", v);
+}
+function mPaintUnit() {
+  var u = ["LBS", "KG", "TONS"];
+  for (var i = 0; i < u.length; i++) {
+    document.getElementById("mub" + u[i]).className = editUnit === u[i] ? "ub on" : "ub";
+  }
+}
+function mCalcWeight() {
+  if (editIdx < 0) return;
+  var r = session[editIdx];
+  var v = calcLbs(r.ew, r.qty, r.unit || "LBS");
+  document.getElementById("mCwOut").innerHTML = v.length ? Number(v).toLocaleString() + " lbs" : "&mdash;";
+}
+
+function paintRecGrid() {
+  var g = document.getElementById("recGrid");
+  var n = document.getElementById("recNoPhoto");
+  if (!editPhotos.length) {
+    g.innerHTML = "";
+    n.className = "note";
+    return;
+  }
+  n.className = "note hidden";
+  var h = "";
+  for (var i = 0; i < editPhotos.length; i++) {
+    h += '<div class="pi" onclick="openViewer(\'edit\',' + i + ')"><img src="' + editPhotos[i].url +
+         '" style="transform:rotate(' + (editPhotos[i].rot || 0) + 'deg)" alt=""></div>';
+  }
+  g.innerHTML = h;
+}
+
+recFile.onchange = function () {
+  var fs = recFile.files;
+  for (var i = 0; i < fs.length; i++) {
+    editPhotos.push({ url: URL.createObjectURL(fs[i]), custom: "", comment: "" });
+  }
+  recFile.value = "";
+  paintRecGrid();
+  paintList();
+};
+
+function mSetNpn(v) { mSave("npn", !!v); }
+function mSetCap(v) { mSave("cap", !!v); }
+function mToggleNpn() {
+  var el = document.getElementById("mNpnCk");
+  el.checked = !el.checked;
+  mSetNpn(el.checked);
+}
+function mToggleCap() {
+  var el = document.getElementById("mCapCk");
+  el.checked = !el.checked;
+  mSetCap(el.checked);
+}
+function mBumpQty(d) {
+  editQty = Math.max(1, editQty + d);
+  document.getElementById("mQty").innerHTML = editQty;
+  mSave("qty", editQty);
+}
+
+/* ================= photo viewer ================= */
+/* Same shape as the INV viewer: back arrow and filename, image, page dots,
+   bottom bar. Download and Share are deliberately left out in Quick Mode -
+   the photo has not been matched to a record yet, so there is nothing to
+   send anywhere. Delete sits behind More, two deliberate taps down. */
+function openViewer(ctx, i) {
+  if (event) event.stopPropagation();
+  vCtx = ctx;
+  vList = ctx === "cur" ? cur.photos : editPhotos;
+  vBase = ctx === "cur" ? cur.recId : (editIdx > -1 ? session[editIdx].recId : "");
+  vIdx = i;
+  paintViewer();
+  document.getElementById("viewer").className = "viewer on";
+  lockScroll();
+}
+function closeViewer() {
+  closeVMore();
+  if (!isOn("viewer")) return;
+  document.getElementById("viewer").className = "viewer";
+  unlockScroll();
+}
+function paintViewer() {
+  if (!vList.length) { closeViewer(); return; }
+  if (vIdx < 0) vIdx = 0;
+  if (vIdx > vList.length - 1) vIdx = vList.length - 1;
+  document.getElementById("vImg").src = vList[vIdx].url;
+  rotDeg = vList[vIdx].rot || 0;
+  zReset();
+  document.getElementById("vName").innerHTML = esc(photoLabel(vList, vIdx, vBase));
+  var c = vList[vIdx].comment;
+  document.getElementById("vCdot").className = (c && c.length) ? "cdot" : "cdot hidden";
+  var h = "";
+  if (vList.length > 1) {
+    for (var i = 0; i < vList.length; i++) { h += '<i class="' + (i === vIdx ? "on" : "") + '"></i>'; }
+  }
+  document.getElementById("vDots").innerHTML = h;
+}
+
+function openVMore() {
+  if (isOn("vSheet")) return;
+  document.getElementById("vScrim").className = "vscrim on";
+  document.getElementById("vSheet").className = "vsheet on";
+  lockScroll();
+}
+function closeVMore() {
+  if (!isOn("vSheet")) return;
+  document.getElementById("vScrim").className = "vscrim";
+  document.getElementById("vSheet").className = "vsheet";
+  unlockScroll();
+}
+
+function deletePhoto() {
+  closeVMore();
+  vList.splice(vIdx, 1);
+  if (vCtx === "cur") { paintStrip(); checkNext(); } else { paintRecGrid(); paintList(); }
+  if (!vList.length) { closeViewer(); return; }
+  paintViewer();
+  toast("Photo deleted");
+}
+
+/* ---- small overlay used for Edit name and photo comment ---- */
+function openOvl(mode, title, value, multiline) {
+  ovlMode = mode;
+  document.getElementById("vOvlTitle").innerHTML = title;
+  var inp = document.getElementById("vOvlInp");
+  var ta = document.getElementById("vOvlTa");
+  inp.className = multiline ? "inp hidden" : "inp";
+  ta.className = multiline ? "inp" : "inp hidden";
+  if (multiline) { ta.value = value; } else { inp.value = value; }
+  var already = isOn("vOvl");
+  document.getElementById("vOvl").className = "vovl on";
+  if (!already) lockScroll();
+}
+function closeOvl() {
+  if (!isOn("vOvl")) return;
+  document.getElementById("vOvl").className = "vovl";
+  ovlMode = "";
+  renameIdx = -1;
+  unlockScroll();
+}
+function saveOvl() {
+  if (ovlMode === "rename") {
+    var rv = document.getElementById("vOvlInp").value;
+    rv = rv.replace(/^\s+|\s+$/g, "").toUpperCase();
+    if (!rv.length) { closeOvl(); return; }
+    applyRename(rv);
+    return;
+  }
+  var p = vList[vIdx];
+  if (!p) { closeOvl(); return; }
+  if (ovlMode === "name") {
+    var n = document.getElementById("vOvlInp").value;
+    n = n.replace(/^\s+|\s+$/g, "");
+    if (n.length) {
+      if (n.toLowerCase().indexOf(".jpg") !== n.length - 4) n += ".jpg";
+      p.custom = n;
+    }
+  } else if (ovlMode === "comment") {
+    p.comment = document.getElementById("vOvlTa").value;
+  }
+  closeOvl();
+  paintViewer();
+}
+
+function editPhotoName() {
+  closeVMore();
+  openOvl("name", "Edit name", photoLabel(vList, vIdx, vBase), false);
+}
+function openPhotoComment() {
+  var p = vList[vIdx];
+  openOvl("comment", "Photo comment", p ? (p.comment || "") : "", true);
+}
+
+/* ================= viewer zoom, pan, rotate =================
+   Half the useful text on a tool is on a small stamped plate, and the rep
+   is often shooting it at arm's length past something. Being able to open
+   the shot and read it without going back to the tool is the point.
+
+   Zoom and pan are view state - they reset when the photo changes.
+   Rotation is stored ON the photo, so it stays put and shows on the
+   thumbnails too. In production rotation would have to be written into
+   the image itself, so the desk and the supplier package see it upright
+   as well; here it is display only. */
+var zScale = 1, zX = 0, zY = 0, rotDeg = 0;
+var pinching = false, pStartDist = 0, pStartScale = 1;
+var panning = false, panSX = 0, panSY = 0, panOX = 0, panOY = 0;
+var vx0 = 0, vy0 = 0, lastTapT = 0;
+
+function zApply() {
+  document.getElementById("vImg").style.transform =
+    "translate(" + zX + "px, " + zY + "px) scale(" + zScale + ") rotate(" + rotDeg + "deg)";
+}
+function zReset() {
+  zScale = 1; zX = 0; zY = 0;
+  zApply();
+}
+function zClamp() {
+  var img = document.getElementById("vImg");
+  var w = img.clientWidth, h = img.clientHeight, t;
+  if (rotDeg === 90 || rotDeg === 270) { t = w; w = h; h = t; }
+  var mx = Math.max(0, (w * zScale - w) / 2);
+  var my = Math.max(0, (h * zScale - h) / 2);
+  if (zX > mx) zX = mx;
+  if (zX < -mx) zX = -mx;
+  if (zY > my) zY = my;
+  if (zY < -my) zY = -my;
+}
+function touchDist(e) {
+  var dx = e.touches[0].clientX - e.touches[1].clientX;
+  var dy = e.touches[0].clientY - e.touches[1].clientY;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function rotatePhoto() {
+  closeVMore();
+  var p = vList[vIdx];
+  if (!p) return;
+  p.rot = ((p.rot || 0) + 90) % 360;
+  rotDeg = p.rot;
+  zReset();
+  if (vCtx === "cur") { paintStrip(); } else { paintRecGrid(); paintList(); }
+}
+
+var vbody = document.getElementById("vBody");
+
+vbody.addEventListener("touchstart", function (e) {
+  if (e.touches.length === 2) {
+    pinching = true;
+    panning = false;
+    pStartDist = touchDist(e);
+    pStartScale = zScale;
+    if (e.preventDefault) e.preventDefault();
+    return;
+  }
+  if (e.touches.length !== 1) return;
+  vx0 = e.touches[0].clientX;
+  vy0 = e.touches[0].clientY;
+  var now = new Date().getTime();
+  if (now - lastTapT < 300) {
+    lastTapT = 0;
+    if (zScale > 1) { zReset(); } else { zScale = 2.5; zClamp(); zApply(); }
+    if (e.preventDefault) e.preventDefault();
+    return;
+  }
+  lastTapT = now;
+  if (zScale > 1) {
+    panning = true;
+    panSX = vx0; panSY = vy0;
+    panOX = zX; panOY = zY;
+  }
+}, false);
+
+vbody.addEventListener("touchmove", function (e) {
+  if (pinching && e.touches.length === 2) {
+    if (pStartDist > 0) {
+      var sc = pStartScale * (touchDist(e) / pStartDist);
+      if (sc < 1) sc = 1;
+      if (sc > 6) sc = 6;
+      zScale = sc;
+      zClamp();
+      zApply();
+    }
+    if (e.preventDefault) e.preventDefault();
+    return;
+  }
+  if (panning && e.touches.length === 1) {
+    zX = panOX + (e.touches[0].clientX - panSX);
+    zY = panOY + (e.touches[0].clientY - panSY);
+    zClamp();
+    zApply();
+    if (e.preventDefault) e.preventDefault();
+  }
+}, false);
+
+vbody.addEventListener("touchend", function (e) {
+  var wasPinch = pinching, wasPan = panning;
+  if (!e.touches || e.touches.length === 0) { pinching = false; panning = false; }
+  if (zScale <= 1.01 && zScale !== 1) zReset();
+  /* Swipe to the next photo only at 1x. Zoomed in, a drag is a pan. */
+  if (wasPinch || wasPan || zScale > 1) return;
+  if (!e.changedTouches || !e.changedTouches.length) return;
+  var dx = e.changedTouches[0].clientX - vx0;
+  var dy = e.changedTouches[0].clientY - vy0;
+  if (Math.abs(dx) < 45 || Math.abs(dy) > Math.abs(dx)) return;
+  vIdx = dx < 0 ? vIdx + 1 : vIdx - 1;
+  paintViewer();
+}, false);
+
+/* ================= toast ================= */
+var tmr = null;
+function toast(msg) {
+  var t = document.getElementById("toast");
+  t.innerHTML = msg;
+  t.className = "toast on";
+  if (tmr) clearTimeout(tmr);
+  tmr = setTimeout(function () { t.className = "toast"; }, 1900);
+}
+
+/* ================= init ================= */
+wireSelectAll();
+wireUnitKeys();
+paintLoc();
+applyVis();
+paintUnit();
+calcWeight();
+checkNext();
+document.getElementById("cntCorvac").innerHTML = countLabel();
+
+/* =====================================================================
+   VOICE PROBE v1  -  APPENDED MODULE, NOTHING ABOVE THIS LINE WAS EDITED
+   =====================================================================
+   Purpose: find out whether speaking a record beats typing one, and more
+   importantly whether the recognition actually lands. This is a probe.
+   It is not part of the merge build and it is not Stage 7.
+
+   Engine: Web Speech API. Chrome on Android only. Needs HTTPS and needs
+   signal. Will not run from a file:// URL - the microphone is blocked
+   there the same way the camera is.
+
+   Read-back: reference and tool type only. Everything else is taken
+   silently. Uncertainty never stops the rep - it is recorded as a flag
+   and becomes desk work.
+   ===================================================================== */
+
+var vpOn = false, vpStep = -1, vpRec = null, vpFlags = {}, vpBusy = false;
+var vpRetry = 0, vpAbort = false;
+
+var VP_NUMWORDS = {
+  zero:0, one:1, two:2, three:3, four:4, five:5, six:6, seven:7, eight:8,
+  nine:9, ten:10, eleven:11, twelve:12, thirteen:13, fourteen:14,
+  fifteen:15, sixteen:16, seventeen:17, eighteen:18, nineteen:19,
+  twenty:20, thirty:30, forty:40, fifty:50, sixty:60, seventy:70,
+  eighty:80, ninety:90, hundred:100, thousand:1000
+};
+
+/* ---- the field run ----
+   Order is screen order, top to bottom, so what you hear matches what you
+   see. Every field the screen can show is here except two:
+
+   Tool code is left out on purpose. It is an internal value that means
+   nothing to the supplier or the customer, and it is all abbreviations -
+   TRN-2 and the like - which is the exact thing speech recognition is
+   worst at. Asking for it would fill the desk queue with red flags on a
+   field nobody downstream reads. It stays on screen and gets thumbed in.
+
+   Calculated weight is left out because the app computes it.
+
+   "vis" names the screen toggle that governs the field. If that toggle is
+   off, the field is not on screen and it is not asked. A field with vis
+   null is always on screen and always asked.
+
+   "say" is what gets spoken. "lbl" is what gets shown on the flag chips
+   and the report. They differ where a written label reads badly aloud -
+   "Row NBR" on screen is spoken as "Row number". ---- */
+var VP_FIELDS = [
+  { k:"ref",   lbl:"Tool ID",     say:"Tool ID",             kind:"ref",   vis:"ref",       back:true  },
+  { k:"tt",    lbl:"Tool type",   say:"Tool type",           kind:"list",  vis:null,        back:true  },
+  { k:"qty",   lbl:"Quantity",    say:"Quantity",            kind:"num",   vis:null,        back:false },
+  { k:"dieOp", lbl:"Die/op",      say:"Die op",              kind:"ref",   vis:"dieOp",     back:false },
+  { k:"npn",   lbl:"NPN",         say:"N P N. Yes or no",    kind:"bool",  vis:"npn",       back:false },
+  { k:"cap",   lbl:"Capacity",    say:"Capacity. Yes or no", kind:"bool",  vis:"cap",       back:false },
+  { k:"site",  lbl:"Site loc",    say:"Site location",       kind:"combo", vis:null,        back:false },
+  { k:"det",   lbl:"Section",     say:"Section",             kind:"combo", vis:null,        back:false },
+  { k:"row",   lbl:"Row NBR",     say:"Row number",          kind:"num",   vis:"rowStack",  back:false },
+  { k:"stack", lbl:"Stack NBR",   say:"Stack number",        kind:"num",   vis:"rowStack",  back:false },
+  { k:"rack",  lbl:"Rack NBR",    say:"Rack number",         kind:"alnum", vis:"rackShelf", back:false },
+  { k:"shelf", lbl:"Shelf NBR",   say:"Shelf number",        kind:"alnum", vis:"rackShelf", back:false },
+  { k:"skid",  lbl:"Skid NBR",    say:"Skid number",         kind:"alnum", vis:"skid",      back:false },
+  { k:"len",   lbl:"Length",      say:"Length",              kind:"num",   vis:"meas",      back:false },
+  { k:"wid",   lbl:"Width",       say:"Width",               kind:"num",   vis:"meas",      back:false },
+  { k:"hgt",   lbl:"Height",      say:"Height",              kind:"num",   vis:"meas",      back:false },
+  { k:"ew",    lbl:"Est weight",  say:"Estimated weight",    kind:"num",   vis:"meas",      back:false },
+  { k:"unit",  lbl:"Unit",        say:"Unit",                kind:"unit",  vis:"meas",      back:false },
+  { k:"cmt",   lbl:"Comments",    say:"Inventory comments",  kind:"free",  vis:null,        back:false }
+];
+
+/* A field is asked only if it is on screen. One test, used by the run,
+   the flag chips and the report, so all three agree. */
+function vpVisible(f) { return !f.vis || !!vis[f.vis]; }
+
+/* ================= speech out ================= */
+function vpSpeak(txt, done) {
+  if (!window.speechSynthesis) { if (done) done(); return; }
+  try { speechSynthesis.cancel(); } catch (e) {}
+  var u = new SpeechSynthesisUtterance(txt);
+  u.rate = 1.15;
+  u.onend = function () { if (done) done(); };
+  u.onerror = function () { if (done) done(); };
+  speechSynthesis.speak(u);
+}
+
+/* ================= parsing helpers ================= */
+function vpWordsToNum(s) {
+  var parts = s.toLowerCase().replace(/[-,]/g, " ").split(/\s+/);
+  var total = 0, run = 0, hit = false, i, w, v;
+  for (i = 0; i < parts.length; i++) {
+    w = parts[i];
+    if (!VP_NUMWORDS.hasOwnProperty(w)) continue;
+    hit = true;
+    v = VP_NUMWORDS[w];
+    if (v === 100) { run = (run || 1) * 100; }
+    else if (v === 1000) { total += (run || 1) * 1000; run = 0; }
+    else { run += v; }
+  }
+  return hit ? total + run : null;
+}
+
+function vpNum(raw) {
+  var digits = raw.replace(/,/g, "").match(/\d+(\.\d+)?/g);
+  if (digits && digits.length) {
+    return { val: digits.join(""), conf: digits.length > 1 ? "YELLOW" : "GREEN" };
+  }
+  var w = vpWordsToNum(raw);
+  if (w !== null) return { val: String(w), conf: "YELLOW" };
+  return { val: "", conf: "RED" };
+}
+
+/* Rack, shelf and skid hold either a plain number or a number with a
+   letter on it - A12, B3. Treating them as text wrote the word THREE into
+   the shelf field. Treating them as numbers would throw the letter away.
+
+   So: if the whole thing spoken is a number, it becomes digits. If there
+   are letters mixed in, each spoken number word still becomes its digit
+   and the letters are kept. "three" gives 3, "twenty three" gives 23,
+   "A twelve" gives A12. */
+function vpAlnum(raw) {
+  var s = raw.trim();
+  if (!s) return { val: "", conf: "RED" };
+
+  var toks = s.toLowerCase().replace(/[-,]/g, " ").split(/\s+/);
+  var i, w, allNum = true;
+  for (i = 0; i < toks.length; i++) {
+    w = toks[i];
+    if (!w) continue;
+    if (!/^\d+$/.test(w) && !VP_NUMWORDS.hasOwnProperty(w)) { allNum = false; break; }
+  }
+
+  /* whole utterance is a number - let the number parser handle compounds */
+  if (allNum) {
+    var n = vpNum(s);
+    if (n.val) return n;
+  }
+
+  /* mixed - convert number words in place, keep the letters */
+  var out = "";
+  for (i = 0; i < toks.length; i++) {
+    w = toks[i];
+    if (!w) continue;
+    if (/^\d+$/.test(w)) { out += w; }
+    else if (VP_NUMWORDS.hasOwnProperty(w) && w !== "hundred" && w !== "thousand") {
+      out += String(VP_NUMWORDS[w]);
+    } else if (w === "dash" || w === "hyphen") { out += "-"; }
+    else { out += w.toUpperCase().replace(/[^A-Z0-9]/g, ""); }
+  }
+  if (!out) return { val: "", conf: "RED" };
+  return { val: out, conf: "YELLOW" };
+}
+
+/* yes / no, spoken the handful of ways people actually say it */
+function vpBool(raw) {
+  var s = raw.toLowerCase().trim();
+  if (/\b(yes|yeah|yep|yup|affirmative|true|correct|checked|check it|on)\b/.test(s)) {
+    return { val: "Y", conf: "GREEN" };
+  }
+  if (/\b(no|nope|nah|negative|false|off|not)\b/.test(s)) {
+    return { val: "N", conf: "GREEN" };
+  }
+  return null;
+}
+
+function vpRefClean(raw) {
+  var s = raw.toUpperCase();
+  s = s.replace(/\bDASH\b|\bHYPHEN\b/g, "-");
+  s = s.replace(/[^A-Z0-9\-]/g, "");
+  return s;
+}
+
+/* token-overlap match against a fixed list. Returns value + confidence. */
+function vpMatchList(raw, list) {
+  var said = raw.toLowerCase().replace(/[^a-z0-9 ]/g, " ").split(/\s+/);
+  var best = null, bestScore = 0, i, j, cand, toks, score, k;
+  for (i = 0; i < list.length; i++) {
+    cand = list[i];
+    toks = cand.toLowerCase().split(/\s+/);
+    score = 0;
+    for (j = 0; j < toks.length; j++) {
+      for (k = 0; k < said.length; k++) {
+        if (!said[k]) continue;
+        if (said[k] === toks[j]) { score += 1; break; }
+        if (toks[j].indexOf(said[k]) === 0 && said[k].length >= 3) { score += 0.6; break; }
+      }
+    }
+    score = score / toks.length;
+    if (score > bestScore) { bestScore = score; best = cand; }
+  }
+  if (!best || bestScore < 0.34) return { val: "", conf: "RED" };
+  return { val: best, conf: bestScore >= 0.75 ? "GREEN" : "YELLOW" };
+}
+
+function vpMatchUnit(raw) {
+  var s = raw.toLowerCase();
+  if (/\bton/.test(s)) return { val: "TONS", conf: "GREEN" };
+  if (/\bkilo|\bkg\b|\bk g\b/.test(s)) return { val: "KG", conf: "GREEN" };
+  if (/\bpound|\blbs?\b/.test(s)) return { val: "LBS", conf: "GREEN" };
+  return { val: "", conf: "RED" };
+}
+
+/* ================= writing values into the existing form ================= */
+function vpSet(f, res) {
+  var v = res.val;
+  vpFlags[f.k] = res.conf;
+
+  /* Location and measurements deliberately carry from one tool to the
+     next - the rep is standing in the same rack shooting tool after tool,
+     and retyping the rack every time would be the slowest part of the job.
+
+     That carry was being destroyed by voice. A field that came back blank
+     was written as blank, so a mic that failed to open wiped a rack
+     number the rep had already given on the previous tool.
+
+     A blank never overwrites now. If voice has nothing, whatever is on
+     screen stands. Saying "skip" therefore means "leave it as it is",
+     which on a carried field is the useful meaning anyway. */
+  function put(id, val) {
+    if (!val) return;
+    document.getElementById(id).value = val;
+  }
+
+  if (f.k === "ref")   { if (v) { cur.ref = v; document.getElementById("refInp").value = v; } dieOpSuggest(); }
+  if (f.k === "tt")    { if (v) pickTT(v); }
+  if (f.k === "qty")   { if (v) { cur.qty = parseInt(v, 10) || 1;
+                          document.getElementById("qtyVal").innerHTML = cur.qty; calcWeight(); } }
+  if (f.k === "site")  { if (v) { cur.siteLoc = v; paintLoc(); } }
+  if (f.k === "det")   { if (v) { cur.detailLoc = v; paintLoc(); } }
+  if (f.k === "dieOp") { put("doInp", v); }
+  if (f.k === "npn")   { if (v) { var nk = document.getElementById("npnCk");
+                                  nk.checked = (v === "Y"); setNpn(nk.checked); } }
+  if (f.k === "cap")   { if (v) { var ck = document.getElementById("capCk");
+                                  ck.checked = (v === "Y"); setCap(ck.checked); } }
+  if (f.k === "row")   { put("rowInp", v); }
+  if (f.k === "stack") { put("stackInp", v); }
+  if (f.k === "rack")  { put("rackInp", v); }
+  if (f.k === "shelf") { put("shelfInp", v); }
+  if (f.k === "skid")  { put("skidInp", v); }
+  if (f.k === "len")   { put("lenInp", v); }
+  if (f.k === "wid")   { put("widInp", v); }
+  if (f.k === "hgt")   { put("hgtInp", v); }
+  if (f.k === "ew")    { if (v) { document.getElementById("ewInp").value = v; calcWeight(); } }
+  if (f.k === "unit")  { if (v) pickUnit(v); }
+  if (f.k === "cmt")   { put("cmtInp", v); }
+
+  checkNext();
+  vpPaintFlags();
+}
+
+/* a spoken value that is not a legal list value still has to be usable,
+   so an unmatched location is added to the site list rather than dropped */
+function vpAddCombo(which, val) {
+  var i, list = combos[which];
+  for (i = 0; i < list.length; i++) { if (list[i] === val) return val; }
+  list.push(val);
+  return val;
+}
+
+/* ================= the run ================= */
+function vpStart() {
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    alert("This browser has no speech recognition. Use Chrome on Android. " +
+          "Samsung Internet will not work.");
+    return;
+  }
+  if (location.protocol === "file:") {
+    alert("The microphone is blocked on a file:// page. This has to be served " +
+          "over HTTPS before voice will run at all.");
+    return;
+  }
+  vpOn = true; vpAbort = false; vpStep = -1;
+  document.getElementById("vpBar").className = "vpbar on";
+  document.getElementById("vpBtn").innerHTML = "Stop voice";
+  vpSpeak("Voice on. Say stop to quit.", function () { vpNext(); });
+}
+
+function vpStop(quiet) {
+  vpOn = false; vpAbort = true;
+  try { if (vpRec) vpRec.abort(); } catch (e) {}
+  try { speechSynthesis.cancel(); } catch (e) {}
+  document.getElementById("vpBar").className = "vpbar";
+  document.getElementById("vpBtn").innerHTML = "Start voice";
+  vpStatus("Voice off");
+  if (!quiet) vpSpeak("Voice off");
+}
+
+function vpToggle() { if (vpOn) vpStop(false); else vpStart(); }
+
+function vpNext() {
+  vpRetry = 0;
+  vpStep++;
+  while (vpStep < VP_FIELDS.length && !vpVisible(VP_FIELDS[vpStep])) { vpStep++; }
+  if (vpStep >= VP_FIELDS.length) {
+    vpSpeak("Record ready. Say next tool, or stop.", function () { vpListen(vpEndOfRecord); });
+    return;
+  }
+  vpAsk();
+}
+
+function vpBack() {
+  vpRetry = 0;
+  var i = vpStep - 1;
+  while (i >= 0 && !vpVisible(VP_FIELDS[i])) { i--; }
+  vpStep = i >= 0 ? i : vpStep;
+  if (vpStep < 0 || vpStep >= VP_FIELDS.length || !vpVisible(VP_FIELDS[vpStep])) { vpNext(); return; }
+  vpAsk();
+}
+
+function vpAsk() {
+  if (!vpOn) return;
+  var f = VP_FIELDS[vpStep];
+  vpStatus("Asking: " + f.say);
+  vpSpeak(f.say, function () { vpListen(vpHeard); });
+}
+
+/* The run used to be able to stop dead here.
+   A listen has three ways out: it heard something, it errored, or it just
+   ended. The first two pushed the run forward. The third did nothing, so
+   when Android Chrome ended the mic on its own - no result, no error,
+   which it does on a timeout or when a new listen starts too soon after
+   the last one was cancelled - nothing moved and the run died with no
+   message on screen.
+
+   Now every listen delivers exactly one answer, whichever way out it
+   takes. An end with nothing behind it is delivered as a blank, the same
+   as a timeout, so the field flags empty and the run carries on. The run
+   can no longer stop silently.
+
+   The short pause before starting gives the previous mic session time to
+   release. Cancelling a recognition does not finish instantly, and
+   starting the next one on top of it is what produced the bare end. */
+/* A mic that never opened is not the same as a rep who said nothing.
+
+   The previous version could not tell those apart. Android Chrome will
+   sometimes end a listen the instant it starts - the mic never really
+   opens - and that was being handed back as a blank answer. The rep had
+   said the value out loud and the field still flagged empty. Worse, the
+   run then asked once more, hit the same thing, and gave up.
+
+   A listen a person actually spoke into lasts about a second at the very
+   least. Anything shorter, with no audio ever detected, is the mic
+   failing to open, so the mic is reopened rather than counted as an
+   answer. That reopen does not use up the rep's retry - it was never his
+   turn. After a few failed opens in a row it gives up and reports blank,
+   because at that point something is genuinely wrong and silently
+   retrying forever would be worse.
+
+   The other half of the fix: a recognition that has already finished is
+   no longer cancelled on the way in. Cancelling a finished session is
+   what appears to trigger the bad restart in the first place. */
+var VP_MIN_LISTEN = 1200;   /* shorter than this, with no audio, means it never opened */
+var VP_MAX_OPEN   = 3;      /* reopen attempts before reporting blank */
+var VP_OPEN_GAP   = 500;    /* settle time between a failed open and the next */
+var VP_START_GAP  = 400;    /* settle time after speaking, before the mic opens */
+var vpRecLive = false;
+
+function vpListen(handler) {
+  vpListenOnce(handler, 0);
+}
+
+function vpListenOnce(handler, opens) {
+  if (!vpOn) return;
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var delivered = false;
+  var rec, startedAt = 0, heardAudio = false;
+
+  function deliver(raw, conf) {
+    if (delivered) return;
+    delivered = true;
+    vpBusy = false;
+    vpRecLive = false;
+    if (!vpOn) return;
+    handler(raw, conf);
+  }
+
+  /* end of a listen: either a real empty answer, or a mic that never opened */
+  function ended() {
+    if (delivered) return;
+    var lasted = startedAt ? (new Date().getTime() - startedAt) : 0;
+    var neverOpened = !heardAudio && lasted < VP_MIN_LISTEN;
+    if (neverOpened && opens < VP_MAX_OPEN) {
+      delivered = true;          /* this attempt is done; the next one takes over */
+      vpRecLive = false;
+      vpStatus(vpStatusText() + "  \u2014  reopening mic");
+      setTimeout(function () { vpListenOnce(handler, opens + 1); }, VP_OPEN_GAP);
+      return;
+    }
+    deliver("", 0);
+  }
+
+  try { if (vpRec && vpRecLive) vpRec.abort(); } catch (e) {}
+  rec = new SR();
+  vpRec = rec;
+  rec.lang = "en-US";
+  rec.continuous = false;
+  rec.interimResults = false;
+  rec.maxAlternatives = 3;
+  vpBusy = true;
+  vpStatus(vpStatusText() + "  \u2014  listening");
+
+  rec.onstart = function () { startedAt = new Date().getTime(); vpRecLive = true; };
+  rec.onaudiostart = function () { heardAudio = true; };
+  rec.onspeechstart = function () { heardAudio = true; };
+
+  rec.onresult = function (e) {
+    var raw = e.results[0][0].transcript || "";
+    var conf = e.results[0][0].confidence;
+    deliver(raw.trim(), conf);
+  };
+  rec.onerror = function (e) {
+    if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+      delivered = true;
+      vpBusy = false;
+      vpRecLive = false;
+      vpStatus("Microphone denied. Allow it and start again.");
+      vpStop(true);
+      return;
+    }
+    if (e.error === "aborted") return;   /* we cancelled it on purpose */
+    ended();
+  };
+  rec.onend = function () {
+    setTimeout(ended, 200);
+  };
+
+  setTimeout(function () {
+    if (!vpOn || delivered) return;
+    try { rec.start(); } catch (err) { ended(); }
+  }, VP_START_GAP);
+}
+
+function vpCmd(raw) {
+  var s = raw.toLowerCase().trim();
+  if (/^(stop|quit|end)\b/.test(s)) return "stop";
+  if (/^(no|nope|wrong|again|redo)\b/.test(s)) return "no";
+  if (/^back\b/.test(s)) return "back";
+  if (/^(skip|blank|empty|none)\b/.test(s)) return "skip";
+  if (/^next tool\b|^next\b/.test(s)) return "next";
+  return "";
+}
+
+function vpHeard(raw, conf) {
+  if (!vpOn) return;
+  var f = VP_FIELDS[vpStep];
+
+  /* A yes/no field is checked before the spoken commands, because "no" is
+     a real answer here, not a request to redo the question. */
+  if (f.kind === "bool" && raw) {
+    var b = vpBool(raw);
+    if (b) {
+      vpSet(f, b);
+      vpLogLine(f.lbl + ": heard \u201c" + raw + "\u201d \u2192 " + (b.val === "Y" ? "yes" : "no") + " [" + b.conf + "]");
+      vpNext();
+      return;
+    }
+  }
+
+  var cmd = vpCmd(raw);
+
+  if (cmd === "stop") { vpStop(false); return; }
+  if (cmd === "back") { vpBack(); return; }
+  if (cmd === "no")   { vpAsk(); return; }
+  if (cmd === "skip") { vpSet(f, { val: "", conf: "RED" }); vpNext(); return; }
+
+  if (!raw) {
+    vpRetry++;
+    if (vpRetry < 2) { vpSpeak("Again", function () { vpListen(vpHeard); }); return; }
+    vpSet(f, { val: "", conf: "RED" });
+    vpNext();
+    return;
+  }
+
+  var res;
+  if (f.kind === "num")   res = vpNum(raw);
+  if (f.kind === "ref")   res = { val: vpRefClean(raw), conf: (conf && conf < 0.7) ? "YELLOW" : "GREEN" };
+  if (f.kind === "unit")  res = vpMatchUnit(raw);
+  if (f.kind === "free")  res = { val: raw, conf: (conf && conf < 0.6) ? "YELLOW" : "GREEN" };
+  if (f.kind === "bool")  res = { val: "", conf: "RED" };
+  if (f.kind === "alnum") res = vpAlnum(raw);
+  if (f.kind === "list")  res = vpMatchList(raw, TOOL_TYPES);
+  if (f.kind === "combo") {
+    var which = f.k === "site" ? "siteLoc" : "detailLoc";
+    res = vpMatchList(raw, combos[which]);
+    if (!res.val) {
+      var made = raw.toUpperCase().replace(/[^A-Z0-9 ]/g, "").trim();
+      if (made) { vpAddCombo(which, made); res = { val: made, conf: "YELLOW" }; }
+    }
+  }
+  if (!res) res = { val: raw, conf: "YELLOW" };
+
+  /* engine said it was unsure - record it, never stop */
+  if (conf && conf < 0.55 && res.conf === "GREEN") res.conf = "YELLOW";
+
+  vpSet(f, res);
+  vpLogLine(f.lbl + ": heard \u201c" + raw + "\u201d \u2192 " + (res.val || "(empty)") + " [" + res.conf + "]");
+
+  if (f.back && res.val) { vpSpeak(res.val, function () { vpNext(); }); }
+  else { vpNext(); }
+}
+
+function vpEndOfRecord(raw) {
+  var cmd = vpCmd(raw);
+  if (cmd === "stop") { vpStop(false); return; }
+  if (cmd === "back") { vpBack(); return; }
+  if (cmd === "next" || /next|save|done/i.test(raw)) {
+    if (document.getElementById("nextBtn").disabled) {
+      vpSpeak("Needs a photo and tool type. Fix it on screen.", function () { vpStop(true); });
+      return;
+    }
+    nextTool();
+    vpStep = -1;
+    vpSpeak("Next tool", function () { vpNext(); });
+    return;
+  }
+  vpSpeak("Say next tool, or stop.", function () { vpListen(vpEndOfRecord); });
+}
+
+/* ================= status + flag readout ================= */
+function vpStatusText() {
+  if (vpStep < 0 || vpStep >= VP_FIELDS.length) return "Record ready";
+  return VP_FIELDS[vpStep].lbl;
+}
+function vpStatus(t) { document.getElementById("vpMsg").innerHTML = t; }
+function vpLogLine(t) {
+  var el = document.getElementById("vpLog");
+  var d = document.createElement("div");
+  d.innerHTML = t;
+  el.insertBefore(d, el.firstChild);
+}
+function vpPaintFlags() {
+  var el = document.getElementById("vpFlags"), h = "", i, f, c;
+  for (i = 0; i < VP_FIELDS.length; i++) {
+    f = VP_FIELDS[i];
+    if (!vpVisible(f)) continue;
+    c = vpFlags[f.k] || "";
+    h += '<span class="vpf ' + (c ? c.toLowerCase() : "none") + '">' + f.lbl + "</span>";
+  }
+  el.innerHTML = h;
+}
+
+/* ================= carry the flags onto the saved record ================= */
+var vpOrigNextTool = nextTool;
+nextTool = function () {
+  var snap = {}, k;
+  for (k in vpFlags) { if (vpFlags.hasOwnProperty(k)) snap[k] = vpFlags[k]; }
+  vpOrigNextTool();
+  if (session.length) session[session.length - 1].vpFlags = snap;
+  vpFlags = {};
+  vpPaintFlags();
+};
+
+/* ================= the probe report ================= */
+function vpReport() {
+  var i, j, f, r, c, counts = { GREEN:0, YELLOW:0, RED:0, none:0 };
+  var h = '<div style="font:13px/1.5 -apple-system,system-ui,sans-serif">';
+  if (!session.length) {
+    h += "<p>No tools captured yet. Run a few and come back.</p>";
+  } else {
+    h += "<table style='border-collapse:collapse;width:100%;font-size:11px'>";
+    h += "<tr><th style='text-align:left;padding:3px'>#</th>";
+    for (j = 0; j < VP_FIELDS.length; j++) {
+      if (!vpVisible(VP_FIELDS[j])) continue;
+      h += "<th style='padding:3px;font-weight:600'>" + VP_FIELDS[j].lbl.slice(0, 4) + "</th>";
+    }
+    h += "</tr>";
+    for (i = 0; i < session.length; i++) {
+      r = session[i];
+      h += "<tr><td style='padding:3px'>" + (i + 1) + "</td>";
+      for (j = 0; j < VP_FIELDS.length; j++) {
+        f = VP_FIELDS[j];
+        if (!vpVisible(f)) continue;
+        c = (r.vpFlags && r.vpFlags[f.k]) ? r.vpFlags[f.k] : "none";
+        counts[c] = (counts[c] || 0) + 1;
+        h += "<td style='padding:3px;text-align:center;background:" +
+             (c === "GREEN" ? "#1e7a3c" : c === "YELLOW" ? "#8a6d00" : c === "RED" ? "#8a1e1e" : "#333") +
+             ";color:#fff'>" + (c === "none" ? "\u2013" : c.charAt(0)) + "</td>";
+      }
+      h += "</tr>";
+    }
+    h += "</table>";
+    h += "<p style='margin-top:10px'>Clean: " + counts.GREEN +
+         " &nbsp; Unsure: " + counts.YELLOW +
+         " &nbsp; Empty: " + counts.RED +
+         " &nbsp; Typed not spoken: " + counts.none + "</p>";
+    h += "<p style='margin-top:8px;color:#999'>Unsure and Empty are the desk queue. " +
+         "If those two columns are large on reference or tool type, voice is not " +
+         "carrying those fields and they belong to the OCR read instead.</p>";
+  }
+  h += "</div>";
+  openSheet("Voice probe report", h, false);
+}
+
+vpPaintFlags();
+
+</script>
+</body>
+</html>
